@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>GitHub Copilot AI Usage</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0d1117; color: #e6edf3; min-height: 100vh; }
+
+  /* Drop zone */
+  #dropzone { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; gap: 16px; padding: 40px; transition: background 0.2s; }
+  #dropzone.drag-over { background: #161b22; }
+  .drop-title { font-size: 1.3rem; font-weight: 600; color: #f0f6fc; }
+  .drop-sub { color: #8b949e; font-size: 0.9rem; text-align: center; max-width: 480px; }
+  .drop-box { border: 2px dashed #30363d; border-radius: 12px; padding: 40px 60px; display: flex; flex-direction: column; align-items: center; gap: 12px; cursor: pointer; transition: border-color 0.2s, background 0.2s; }
+  .drop-box:hover, #dropzone.drag-over .drop-box { border-color: #58a6ff; background: #161b22; }
+  #fileInput { display: none; }
+  .btn { padding: 8px 20px; border-radius: 6px; border: 1px solid #30363d; background: #21262d; color: #c9d1d9; cursor: pointer; font-size: 0.85rem; transition: background 0.15s; }
+  .btn:hover { background: #30363d; }
+  .note { color: #8b949e; font-size: 0.78rem; text-align: center; margin-top: 4px; }
+
+  /* Dashboard */
+  #dashboard { display: none; padding: 24px; }
+  .header { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; flex-wrap: wrap; }
+  h1 { font-size: 1.3rem; font-weight: 600; color: #f0f6fc; }
+  .header-meta { color: #8b949e; font-size: 0.82rem; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .header-actions { display: flex; gap: 8px; align-items: center; margin-left: auto; flex-shrink: 0; }
+  .lang-btn { padding: 4px 10px; border-radius: 5px; border: 1px solid #30363d; background: transparent; color: #8b949e; cursor: pointer; font-size: 0.78rem; transition: all 0.15s; }
+  .lang-btn:hover { color: #c9d1d9; border-color: #8b949e; }
+  .reset-btn { padding: 5px 12px; border-radius: 6px; border: 1px solid #30363d; background: transparent; color: #8b949e; cursor: pointer; font-size: 0.78rem; }
+  .reset-btn:hover { color: #c9d1d9; border-color: #8b949e; }
+  .subtitle { color: #8b949e; font-size: 0.82rem; margin-bottom: 12px; }
+
+  /* Cost stat bar */
+  .cost-bar { display: flex; gap: 0; margin-bottom: 12px; background: #161b22; border: 1px solid #21262d; border-radius: 8px; overflow: hidden; width: fit-content; }
+  .cost-stat { padding: 8px 18px; display: flex; flex-direction: column; gap: 2px; cursor: default; border-right: 1px solid #21262d; }
+  .cost-stat:last-child { border-right: none; }
+  .cost-stat-label { font-size: 0.7rem; color: #8b949e; letter-spacing: 0.04em; }
+  .cost-stat-value { font-size: 0.9rem; font-weight: 600; display: flex; align-items: baseline; gap: 5px; }
+  .cost-stat-sub { font-size: 0.72rem; font-weight: 400; color: #8b949e; }
+
+  /* Validation banner */
+  #validationBanner { margin-bottom: 14px; }
+  .vb-ok { display: flex; align-items: center; gap: 6px; font-size: 0.74rem; color: #6e7681; padding: 2px 0; margin-bottom: 2px; }
+  .vb-ok .vb-detail-ok { color: #6e7681; margin-left: 2px; }
+  .vb-full { border-radius: 8px; overflow: hidden; border: 1px solid transparent; }
+  .vb-full.warn { border-color: #9e6a03; background: #1f1500; }
+  .vb-full.err  { border-color: #b91c1c; background: #1f0f0f; }
+  .vb-header { display: flex; align-items: center; gap: 10px; padding: 10px 14px; cursor: pointer; user-select: none; font-size: 0.85rem; font-weight: 600; }
+  .vb-full.warn .vb-header { color: #d29922; }
+  .vb-full.err  .vb-header { color: #f87171; }
+  .vb-chevron { margin-left: auto; font-size: 0.7rem; transition: transform 0.2s; }
+  .vb-body { display: none; padding: 0 14px 12px; }
+  .vb-body.open { display: block; }
+  .vb-item { display: flex; gap: 8px; align-items: flex-start; padding: 4px 0; font-size: 0.82rem; border-top: 1px solid #ffffff08; }
+  .vb-icon { flex-shrink: 0; width: 18px; text-align: center; }
+  .vb-text { color: #c9d1d9; }
+  .vb-detail-msg { color: #8b949e; font-size: 0.78rem; margin-top: 2px; }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 4px; margin-bottom: 20px; flex-wrap: wrap; }
+  .tab { padding: 7px 16px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; border: 1px solid transparent; background: transparent; color: #8b949e; transition: all 0.15s; }
+  .tab.active { background: #21262d; border-color: #30363d; color: #f0f6fc; }
+  .tab:hover:not(.active) { color: #c9d1d9; }
+
+  /* Panels & cards */
+  .panel { display: none; }
+  .panel.active { display: block; }
+  .chart-card { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 20px; margin-bottom: 20px; }
+  .chart-title { font-size: 0.9rem; font-weight: 600; color: #c9d1d9; margin-bottom: 16px; }
+  .chart-wrap { position: relative; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 700px) { .grid-2 { grid-template-columns: 1fr; } }
+
+  /* Table */
+  table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  th { text-align: left; padding: 8px 12px; color: #8b949e; font-weight: 500; border-bottom: 1px solid #21262d; cursor: pointer; user-select: none; white-space: nowrap; }
+  th:hover { color: #c9d1d9; }
+  th .sort-icon { margin-left: 4px; font-size: 0.7rem; opacity: 0.5; }
+  th.sort-active { color: #58a6ff; }
+  th.sort-active .sort-icon { opacity: 1; }
+  td { padding: 8px 12px; border-bottom: 1px solid #21262d; color: #e6edf3; }
+  tr:last-child td { border-bottom: none; }
+  .bar-inline { display: flex; align-items: center; gap: 8px; }
+  .bar-bg { flex: 1; height: 6px; background: #21262d; border-radius: 3px; overflow: hidden; min-width: 60px; }
+  .bar-fill { height: 100%; border-radius: 3px; }
+  .qbar-ok   { background: #3fb950; }
+  .qbar-over { background: #ff7b72; }
+  .num { font-variant-numeric: tabular-nums; }
+  .rank { color: #8b949e; font-size: 0.78rem; }
+</style>
+</head>
+<body>
+
+<!-- Drop Zone -->
+<div id="dropzone">
+  <button class="lang-btn" id="dropLangToggle" onclick="toggleLang()" style="position:absolute;top:20px;right:20px">日本語</button>
+  <div class="drop-title" data-i18n="dropTitle">🤖 GitHub Copilot AI Usage Viewer</div>
+  <div class="drop-sub" data-i18n="dropSub">Drop an AI Usage Report CSV downloaded from GitHub Copilot billing</div>
+  <div class="drop-box" onclick="document.getElementById('fileInput').click()">
+    <span style="font-size:2.5rem">📂</span>
+    <span style="color:#8b949e;font-size:0.9rem" data-i18n="dropHint">Drop CSV file here</span>
+    <button class="btn" data-i18n="dropBtn">Select file</button>
+    <input type="file" id="fileInput" accept=".csv">
+  </div>
+  <p class="note" data-i18n="dropNote">CSV data is processed in-browser only. It is not uploaded.</p>
+</div>
+
+<!-- Dashboard -->
+<div id="dashboard">
+  <div class="header">
+    <h1 data-i18n="pageTitle">GitHub Copilot AI Usage</h1>
+    <span class="header-meta" id="headerMeta"></span>
+    <div class="header-actions">
+      <button class="lang-btn" id="langToggle" onclick="toggleLang()">日本語</button>
+      <button class="reset-btn" data-i18n="resetBtn" onclick="resetView()">← Load another file</button>
+    </div>
+  </div>
+  <div class="subtitle" id="subtitle"></div>
+  <div class="cost-badges" id="costBadges"></div>
+  <div id="validationBanner"></div>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="overview" data-i18n="tabOverview" onclick="switchTab(this,'overview')">Overview</button>
+    <button class="tab" data-tab="members"  data-i18n="tabMembers"  onclick="switchTab(this,'members')">Members</button>
+    <button class="tab" data-tab="model"    data-i18n="tabModel"    onclick="switchTab(this,'model')">By Model</button>
+    <button class="tab" data-tab="daily"    data-i18n="tabDaily"    onclick="switchTab(this,'daily')">Daily Trend</button>
+  </div>
+
+  <div id="overview" class="panel active">
+    <div class="chart-card">
+      <div class="chart-title" data-i18n="ctCumulative"></div>
+      <div class="chart-wrap" style="height:240px"><canvas id="chartCumulative"></canvas></div>
+    </div>
+    <div class="grid-2">
+      <div class="chart-card">
+        <div class="chart-title" data-i18n="ctDateTotal"></div>
+        <div class="chart-wrap" style="height:260px"><canvas id="chartDateTotal"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title" data-i18n="ctModelShare"></div>
+        <div class="chart-wrap" style="height:260px"><canvas id="chartModelShare"></canvas></div>
+      </div>
+    </div>
+  </div>
+  <div id="members" class="panel">
+    <div class="chart-card">
+      <div class="chart-title" data-i18n="ctMembers"></div>
+      <div class="chart-wrap" style="height:340px"><canvas id="chartTotal"></canvas></div>
+    </div>
+    <div class="chart-card" style="margin-top:0">
+      <div class="chart-title" data-i18n="ctTable"></div>
+      <table id="tableMain"></table>
+    </div>
+  </div>
+  <div id="model" class="panel">
+    <div class="chart-card">
+      <div class="chart-title" data-i18n="ctModel"></div>
+      <div class="chart-wrap" style="height:420px"><canvas id="chartModel"></canvas></div>
+    </div>
+  </div>
+  <div id="daily" class="panel">
+    <div class="chart-card">
+      <div class="chart-title" data-i18n="ctDaily"></div>
+      <div class="chart-wrap" style="height:380px"><canvas id="chartDaily"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// =====================================================================
+// i18n
+// =====================================================================
+const I18N = {
+  en: {
+    pageTitle:   '🤖 GitHub Copilot AI Usage',
+    dropTitle:   '🤖 GitHub Copilot AI Usage Viewer',
+    dropSub:     'Drop an AI Usage Report CSV downloaded from GitHub Copilot billing',
+    dropHint:    'Drop CSV file here',
+    dropBtn:     'Select file',
+    dropNote:    'CSV data is processed in-browser only. It is not uploaded.',
+    resetBtn:    '← Load another file',
+    langToggle:  '日本語',
+    members:     'members',
+    separator:   '–',
+    // tabs
+    tabOverview: 'Overview',
+    tabMembers:  'Members',
+    tabModel:    'By Model',
+    tabDaily:    'Daily Trend',
+    // chart titles
+    ctCumulative:  'Cumulative Gross',
+    ctMembers:     'AI Credit Usage by Member (Gross)',
+    ctModel:       'AI Credit Usage by Member & Model (Stacked)',
+    ctDaily:       'Daily Trend by Member (Top 8)',
+    ctModelShare:  'Model Share (Org-wide)',
+    ctDateTotal:   'Daily Org Total (Gross)',
+    ctTable:       'Member Detail',
+    // table headers + tooltips
+    colRank:    '#',
+    colUser:    'User',
+    colGross:   'Gross',
+    colNet:     'Net',
+    colShare:   'Usage Share',
+    colQuota:   'vs. Quota',
+    colModel:   'Top Model',
+    tipGross:   'Total GitHub AI Credits consumed at list price ($0.01/credit). Gross amount before discounts.',
+    tipNet:     'Actual billed amount after included usage is applied. $0.00 = fully covered by AI credit pool.',
+    tipShare:   'Share of total gross usage among all members in this report.',
+    tipQuota:   'AI credits used vs. the monthly quota included in your Copilot plan. Red = quota exceeded.',
+    tipModel:   'The model with the highest gross AI credit consumption for this member.',
+    // badges
+    badgeGross:    'Gross',
+    badgeNet:      'Net',
+    badgeNetWarn:  'Net',
+    badgeCovered:  'Covered',
+    tipBadgeGross: 'Total GitHub AI Credits consumed across all members at list price ($0.01/credit)',
+    tipBadgeNet0:  'Actual billed amount. $0.00 = all usage covered by included AI credits (AI credit pool)',
+    tipBadgeNetX:  'Actual billed amount including metered usage beyond included AI credits',
+    tipBadgeCover: "Percentage of gross usage covered by your plan's included AI credits",
+    coveredLabel:  'Covered by included usage',
+    meteredLabel:  'Includes metered usage',
+    // validation
+    vbOkLabel:     '',
+    vbOkText:      'Validation passed',
+    vbOkInfo:      'info only',
+    vbRowTotal:    'Row total',
+    vbWarnTitle:   'Warnings — please review',
+    vbErrTitle:    'Errors detected — values may be inaccurate',
+    vm: {
+      noRows:      { t: ()    => 'No data rows found',
+                     d: ()    => 'The CSV appears to be empty or header-only.' },
+      missingCols: { t: p     => `Required columns not found: ${p.cols}`,
+                     d: ()    => 'This may not be a GitHub Copilot AI Usage Report CSV.' },
+      parseErrors: { t: p     => `${p.n} row(s) with unparseable aic_gross_amount`,
+                     d: p     => `e.g. ${p.ex}` },
+      emptyFields: { t: p     => `${p.n} row(s) missing username / model / date`,
+                     d: ()    => 'These rows are excluded from aggregation.' },
+      negRows:     { t: p     => `${p.n} row(s) with negative aic_gross_amount`,
+                     d: ()    => 'May indicate refunds or adjustments. Verify totals.' },
+      sumMismatch: { t: p     => `SUM mismatch: row total $${p.row} ≠ aggregated $${p.agg} (diff $${p.diff})`,
+                     d: ()    => 'Rows with empty username may be excluded.' },
+      qty0Rows:    { t: p     => `${p.n} row(s): quantity=0 but aic_gross_amount>0 (dates: ${p.dates})`,
+                     d: ()    => "Today's usage not yet finalized — aic_gross_amount is used. This is expected." },
+    },
+  },
+  ja: {
+    pageTitle:   '🤖 GitHub Copilot AI Usage',
+    dropTitle:   '🤖 GitHub Copilot AI Usage Viewer',
+    dropSub:     'GitHub Copilot の課金画面からダウンロードした AI Usage Report CSV を読み込みます',
+    dropHint:    'CSVファイルをここにドロップ',
+    dropBtn:     'ファイルを選択',
+    dropNote:    'CSVデータはブラウザ内のみで処理され、アップロードされません。',
+    resetBtn:    '← 別のファイルを読む',
+    langToggle:  'English',
+    members:     '名',
+    separator:   '〜',
+    tabOverview: '概要',
+    tabMembers:  'メンバー別',
+    tabModel:    'モデル別',
+    tabDaily:    '日別トレンド',
+    ctCumulative:  '累積 Gross',
+    ctMembers:     'メンバー別 AI クレジット使用量（Gross）',
+    ctModel:       'メンバー別 モデル別使用量（積み上げ）',
+    ctDaily:       '日別トレンド（上位 8 名）',
+    ctModelShare:  'モデルシェア（組織全体）',
+    ctDateTotal:   '日別 組織合計（Gross）',
+    ctTable:       'メンバー詳細',
+    colRank:    '#',
+    colUser:    'ユーザー',
+    colGross:   'Gross',
+    colNet:     'Net',
+    colShare:   '使用シェア',
+    colQuota:   '月次クォータ比',
+    colModel:   'メインモデル',
+    tipGross:   'AI クレジットの定価合計（$0.01/credit）。割引適用前のグロス金額。',
+    tipNet:     '割引後の実請求額。$0.00 = AI credit pool の included usage でカバー済み。',
+    tipShare:   'このレポート内の全メンバー合計に対するグロス使用量のシェア。',
+    tipQuota:   'Copilot プランに含まれる月次クォータに対する AI クレジット使用量の比率。赤 = クォータ超過。',
+    tipModel:   'このメンバーで最も多く消費した AI クレジットのモデル。',
+    badgeGross:    'Gross',
+    badgeNet:      'Net',
+    badgeNetWarn:  'Net',
+    badgeCovered:  'Covered',
+    tipBadgeGross: '全メンバーの GitHub AI クレジット使用量の定価合計（$0.01/credit）',
+    tipBadgeNet0:  '実請求額。$0.00 = すべて included AI credits（AI credit pool）でカバー済み',
+    tipBadgeNetX:  '実請求額。included AI credits を超えた従量課金（metered usage）を含む',
+    tipBadgeCover: 'グロス使用量のうちプランの included AI credits でカバーされた割合',
+    coveredLabel:  'Included usage でカバー済み',
+    meteredLabel:  '従量課金（Metered usage）あり',
+    vbOkLabel:     '',
+    vbOkText:      '検証通過',
+    vbOkInfo:      '情報のみ',
+    vbRowTotal:    '行合計',
+    vbWarnTitle:   '注意事項があります',
+    vbErrTitle:    'エラーがあります — 値が不正確な可能性があります',
+    vm: {
+      noRows:      { t: ()    => 'データ行が 0 件です',
+                     d: ()    => 'CSV が空か、ヘッダーのみです。' },
+      missingCols: { t: p     => `必須カラムが見つかりません: ${p.cols}`,
+                     d: ()    => 'AI Usage Report 以外の CSV が読み込まれた可能性があります。' },
+      parseErrors: { t: p     => `aic_gross_amount を数値として読み取れない行: ${p.n} 件`,
+                     d: p     => `例: ${p.ex}` },
+      emptyFields: { t: p     => `username / model / date のいずれかが空の行: ${p.n} 件`,
+                     d: ()    => 'これらの行は集計から除外されます。' },
+      negRows:     { t: p     => `aic_gross_amount が負の行: ${p.n} 件`,
+                     d: ()    => '返金・調整が含まれています。合計が意図通りか確認してください。' },
+      sumMismatch: { t: p     => `SUM 不一致: 行合計 $${p.row} ≠ 集計合計 $${p.agg}（差: $${p.diff}）`,
+                     d: ()    => 'ユーザー名が空の行が除外されている可能性があります。' },
+      qty0Rows:    { t: p     => `quantity=0 かつ aic_gross_amount>0 の行: ${p.n} 件（日付: ${p.dates}）`,
+                     d: ()    => '当日分の請求がまだ確定していない行です（aic_gross_amount を使用中）。正常な既知パターンです。' },
+    },
+  },
+};
+
+// =====================================================================
+// Language management
+// =====================================================================
+let lang = (navigator.language || 'en').startsWith('ja') ? 'ja' : 'en';
+
+function t(key) { return I18N[lang][key] ?? key; }
+
+function escapeHTML(value) {
+  return String(value ?? '').replace(/[&<>'"]/g, ch => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    "'": '&#39;',
+    '"': '&quot;',
+  }[ch]));
+}
+
+function toggleLang() {
+  lang = lang === 'en' ? 'ja' : 'en';
+  applyLang();
+}
+
+function applyLang() {
+  document.documentElement.lang = lang;
+  document.querySelector('title').textContent = t('pageTitle');
+  document.getElementById('langToggle').textContent = t('langToggle');
+  const dlt = document.getElementById('dropLangToggle');
+  if (dlt) dlt.textContent = t('langToggle');
+
+  // Static data-i18n elements
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    el.textContent = t(el.dataset.i18n);
+  });
+
+  // Dynamic content (only when data is loaded)
+  if (DATA) {
+    renderSubtitle();
+    renderCostBadges();
+    renderValidation(lastValidation);
+    // Rebuild table (headers change)
+    document.getElementById('tableMain').innerHTML = '';
+    if (activeTab === 'members') buildTable();
+  }
+}
+
+// =====================================================================
+// CSV Parser
+// =====================================================================
+function parseCSV(text) {
+  if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+  text = text.replace(/\r/g, '');
+  const lines = text.trim().split('\n');
+  const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g, '').trim());
+  return lines.slice(1).map(line => {
+    const vals = line.match(/(".*?"|[^,]+|(?<=,)(?=,)|(?<=,)$|^(?=,))/g) || [];
+    const obj = {};
+    headers.forEach((h, i) => { obj[h] = (vals[i] || '').replace(/^"|"$/g, '').trim(); });
+    return obj;
+  });
+}
+
+// =====================================================================
+// Aggregate
+// =====================================================================
+function aggregate(rows) {
+  const user_total = {}, user_model = {}, user_date = {};
+  const model_total = {}, date_total = {};
+  const user_quota = {}, user_net = {};
+  rows.forEach(r => {
+    const amt = parseFloat(r['aic_gross_amount'] || r['gross_amount'] || 0);
+    const net = parseFloat(r['net_amount'] || 0);
+    const u = r['username'], m = r['model'], d = r['date'];
+    if (!u || !m || !d) return;
+    user_total[u] = (user_total[u] || 0) + amt;
+    user_net[u]   = (user_net[u]   || 0) + net;
+    if (!user_model[u]) user_model[u] = {};
+    user_model[u][m] = (user_model[u][m] || 0) + amt;
+    if (!user_date[u]) user_date[u] = {};
+    user_date[u][d] = (user_date[u][d] || 0) + amt;
+    model_total[m] = (model_total[m] || 0) + amt;
+    date_total[d]  = (date_total[d]  || 0) + amt;
+    if (r['total_monthly_quota']) user_quota[u] = parseInt(r['total_monthly_quota']);
+  });
+  const users = Object.keys(user_total).sort((a, b) => user_total[b] - user_total[a]);
+  const dates  = [...new Set(rows.map(r => r['date']).filter(Boolean))].sort();
+  const models = [...new Set(rows.map(r => r['model']).filter(Boolean))].sort();
+  const orgs   = [...new Set(rows.map(r => r['organization']).filter(Boolean))];
+  const grand_list = Object.values(user_total).reduce((s, v) => s + v, 0);
+  const grand_net  = Object.values(user_net).reduce((s, v) => s + v, 0);
+  const grand_disc = grand_list - grand_net;
+  return { users, dates, models, orgs,
+           user_total, user_model, user_date, user_net, user_quota,
+           model_total, date_total, grand_list, grand_net, grand_disc };
+}
+
+// =====================================================================
+// Validation — returns structured {key, p} issues
+// =====================================================================
+function validate(rows) {
+  const issues = [];
+  const REQUIRED = ['date','username','model','aic_gross_amount','gross_amount','quantity'];
+  if (rows.length === 0) {
+    issues.push({ key: 'noRows', p: {}, level: 'err' });
+    return { issues, level: 'err' };
+  }
+  const cols = Object.keys(rows[0]);
+  const missing = REQUIRED.filter(c => !cols.includes(c));
+  if (missing.length > 0)
+    issues.push({ key: 'missingCols', p: { cols: missing.join(', ') }, level: 'err' });
+
+  const parseErrs = rows.filter(r => isNaN(parseFloat(r['aic_gross_amount'])));
+  if (parseErrs.length > 0)
+    issues.push({ key: 'parseErrors', p: { n: parseErrs.length, ex: parseErrs.slice(0,3).map(r=>`${r.date}/${r.username}`).join(', ') }, level: 'warn' });
+
+  const emptyF = rows.filter(r => !r['username'] || !r['model'] || !r['date']);
+  if (emptyF.length > 0)
+    issues.push({ key: 'emptyFields', p: { n: emptyF.length }, level: 'warn' });
+
+  const negR = rows.filter(r => parseFloat(r['aic_gross_amount'] || 0) < 0);
+  if (negR.length > 0)
+    issues.push({ key: 'negRows', p: { n: negR.length }, level: 'warn' });
+
+  const rowSum = rows.reduce((s, r) => s + (parseFloat(r['aic_gross_amount']) || 0), 0);
+  const aggSum = Object.values(rows.reduce((acc, r) => {
+    const u = r['username'], a = parseFloat(r['aic_gross_amount']) || 0;
+    if (u) acc[u] = (acc[u] || 0) + a;
+    return acc;
+  }, {})).reduce((s, v) => s + v, 0);
+  const diff = Math.abs(rowSum - aggSum);
+  if (diff > 0.01)
+    issues.push({ key: 'sumMismatch', p: { row: rowSum.toFixed(4), agg: aggSum.toFixed(4), diff: diff.toFixed(4) }, level: 'warn' });
+
+  const qty0 = rows.filter(r => parseFloat(r['quantity']||0)===0 && parseFloat(r['aic_gross_amount']||0)>0);
+  if (qty0.length > 0)
+    issues.push({ key: 'qty0Rows', p: { n: qty0.length, dates: [...new Set(qty0.map(r=>r['date']))].join(', ') }, level: 'info' });
+
+  const level = issues.some(i=>i.level==='err') ? 'err' : issues.some(i=>i.level==='warn') ? 'warn' : 'ok';
+  return { issues, level, rowSum };
+}
+
+function fmtIssue(issue) {
+  const vm = I18N[lang].vm[issue.key];
+  return vm ? { text: vm.t(issue.p), detail: vm.d(issue.p) } : { text: issue.key, detail: '' };
+}
+
+// =====================================================================
+// State
+// =====================================================================
+let DATA = null, lastValidation = null, activeTab = 'overview';
+const charts = {};
+let sortState = { col: 'total', dir: 'desc' };
+
+// =====================================================================
+// File loading
+// =====================================================================
+const dropzone  = document.getElementById('dropzone');
+const dashboard = document.getElementById('dashboard');
+
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault(); dropzone.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0]; if (f) loadFile(f);
+});
+document.getElementById('fileInput').addEventListener('change', e => {
+  if (e.target.files[0]) loadFile(e.target.files[0]);
+});
+
+function loadFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const rows = parseCSV(e.target.result);
+    lastValidation = validate(rows);
+    DATA = aggregate(rows);
+    sortState = { col: 'total', dir: 'desc' };
+    showDashboard(file.name);
+  };
+  reader.readAsText(file, 'utf-8');
+}
+
+// =====================================================================
+// Dashboard rendering
+// =====================================================================
+function showDashboard(filename) {
+  dropzone.style.display = 'none';
+  dashboard.style.display = 'block';
+  document.getElementById('headerMeta').textContent = filename;
+  activeTab = 'overview';
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelector('[data-tab="overview"]').classList.add('active');
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('overview').classList.add('active');
+  Object.values(charts).forEach(c => c.destroy());
+  Object.keys(charts).forEach(k => delete charts[k]);
+  document.getElementById('tableMain').innerHTML = '';
+  applyLang();
+  buildOrg();
+}
+
+function renderSubtitle() {
+  const d = DATA;
+  document.getElementById('subtitle').textContent =
+    `${d.dates[0]} ${t('separator')} ${d.dates[d.dates.length-1]}  ·  ${d.orgs.join(', ')}  ·  ${d.users.length} ${t('members')}`;
+}
+
+function renderCostBadges() {
+  const { grand_list, grand_net, grand_disc } = DATA;
+  const coverPct = grand_list > 0 ? (grand_disc / grand_list * 100).toFixed(1) : '0.0';
+  const hasMetered = grand_net > 0.001;
+  const netIcon  = hasMetered ? '!' : '';
+  const netColor = hasMetered ? '#d29922' : '#3fb950';
+  const netTip   = hasMetered ? t('tipBadgeNetX') : t('tipBadgeNet0');
+  const netSub   = hasMetered ? t('meteredLabel') : t('coveredLabel');
+  document.getElementById('costBadges').innerHTML = `
+    <div class="cost-bar">
+      <div class="cost-stat" title="${t('tipBadgeGross')}">
+        <span class="cost-stat-label">${t('badgeGross')}</span>
+        <span class="cost-stat-value" style="color:#c9d1d9">$${grand_list.toFixed(2)}</span>
+      </div>
+      <div class="cost-stat" title="${netTip}">
+        <span class="cost-stat-label">${netIcon} ${t('badgeNet')}</span>
+        <span class="cost-stat-value" style="color:${netColor}">$${grand_net.toFixed(2)} <span class="cost-stat-sub">${netSub}</span></span>
+      </div>
+      <div class="cost-stat" title="${t('tipBadgeCover')}">
+        <span class="cost-stat-label">${t('badgeCovered')}</span>
+        <span class="cost-stat-value" style="color:#60a5fa">${coverPct}%</span>
+      </div>
+    </div>`;
+}
+
+function renderValidation(v) {
+  const el = document.getElementById('validationBanner');
+  if (v.level === 'ok') {
+    const infoCount = v.issues.filter(i=>i.level==='info').length;
+    const infoStr = infoCount > 0 ? ` — ${infoCount} ${t('vbOkInfo')}` : '';
+    el.innerHTML = `<div class="vb-ok">${t('vbOkText')}${infoStr} <span class="vb-detail-ok">· ${t('vbRowTotal')} $${v.rowSum.toFixed(2)}</span></div>`;
+  } else {
+    const titleKey = v.level === 'err' ? 'vbErrTitle' : 'vbWarnTitle';
+    const iconMap  = { err:'×', warn:'!', info:'·' };
+    const items = v.issues.map(i => {
+      const { text, detail } = fmtIssue(i);
+      return `<div class="vb-item"><span class="vb-icon">${iconMap[i.level]}</span><div><div class="vb-text">${escapeHTML(text)}</div><div class="vb-detail-msg">${escapeHTML(detail)}</div></div></div>`;
+    }).join('');
+    el.innerHTML = `<div class="vb-full ${v.level}">
+      <div class="vb-header" onclick="this.nextElementSibling.classList.toggle('open');this.querySelector('.vb-chevron').style.transform=this.nextElementSibling.classList.contains('open')?'rotate(180deg)':''">
+        <span>${t(titleKey)}</span>
+        <span style="margin-left:8px;font-size:0.78rem;color:#8b949e">${t('vbRowTotal')}: $${v.rowSum.toFixed(2)}</span>
+        <span class="vb-chevron" style="transform:rotate(180deg)">▼</span>
+      </div>
+      <div class="vb-body open">${items}</div>
+    </div>`;
+  }
+}
+
+function resetView() {
+  dashboard.style.display = 'none';
+  dropzone.style.display  = 'flex';
+  document.getElementById('fileInput').value = '';
+  DATA = null; lastValidation = null;
+}
+
+// =====================================================================
+// Tab switch
+// =====================================================================
+function switchTab(btn, name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById(name).classList.add('active');
+  activeTab = name;
+  if (name === 'overview' && !charts.cumulative) buildOrg();
+  if (name === 'members') { if (!charts.total) buildTotal(); buildTable(); }
+  if (name === 'model'    && !charts.model)      buildModel();
+  if (name === 'daily'    && !charts.daily)      buildDaily();
+}
+
+// =====================================================================
+// Palette
+// =====================================================================
+const PALETTE = [
+  '#58a6ff','#3fb950','#ff7b72','#d2a8ff','#ffa657','#79c0ff','#56d364','#f78166',
+  '#bc8cff','#ffb86c','#a5d6ff','#7ee787','#ffa198','#d8b4fe','#ffd580','#ff9eb5'
+];
+Chart.defaults.color = '#8b949e';
+Chart.defaults.borderColor = '#21262d';
+
+// =====================================================================
+// Charts
+// =====================================================================
+function buildTotal() {
+  const ctx = document.getElementById('chartTotal').getContext('2d');
+  charts.total = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: DATA.users,
+      datasets: [{ label: 'Gross ($)', data: DATA.users.map(u => +DATA.user_total[u].toFixed(2)),
+        backgroundColor: PALETTE, borderRadius: 5, borderSkipped: false }]
+    },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` $${c.raw.toFixed(2)}` } } },
+      scales: { x: { grid: { color: '#21262d' }, ticks: { callback: v => `$${v}` } }, y: { grid: { display: false } } }
+    }
+  });
+}
+
+function buildModel() {
+  const ctx = document.getElementById('chartModel').getContext('2d');
+  const usedModels = DATA.models.filter(m => DATA.users.some(u => (DATA.user_model[u][m]||0) > 0));
+  const mc = {}; usedModels.forEach((m,i) => mc[m] = PALETTE[i%PALETTE.length]);
+  charts.model = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: DATA.users,
+      datasets: usedModels.map(m => ({
+        label: m, data: DATA.users.map(u => +((DATA.user_model[u][m]||0).toFixed(2))),
+        backgroundColor: mc[m], borderRadius: 2, borderSkipped: false,
+      }))
+    },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+        tooltip: { callbacks: { label: c => c.raw>0 ? ` ${c.dataset.label}: $${c.raw.toFixed(2)}` : null }, filter: i => i.raw>0 }
+      },
+      scales: {
+        x: { stacked: true, grid: { color: '#21262d' }, ticks: { callback: v => `$${v}` } },
+        y: { stacked: true, grid: { display: false } }
+      }
+    }
+  });
+}
+
+function buildDaily() {
+  const ctx = document.getElementById('chartDaily').getContext('2d');
+  const top8 = DATA.users.slice(0,8);
+  charts.daily = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: DATA.dates.map(d => d.slice(5)),
+      datasets: top8.map((u,i) => ({
+        label: u, data: DATA.dates.map(d => +((DATA.user_date[u]?.[d]||0).toFixed(2))),
+        borderColor: PALETTE[i], backgroundColor: PALETTE[i]+'20',
+        tension: 0.3, pointRadius: 5, pointHoverRadius: 7, fill: false,
+      }))
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+        tooltip: { callbacks: { label: c => ` ${c.dataset.label}: $${c.raw.toFixed(2)}` } }
+      },
+      scales: { y: { grid: { color: '#21262d' }, ticks: { callback: v=>`$${v}` } }, x: { grid: { color: '#21262d' } } }
+    }
+  });
+}
+
+function buildOrg() {
+  // 累積 Gross ライン
+  const cumVals = DATA.dates.reduce((acc, d) => {
+    const last = acc.length > 0 ? acc[acc.length-1] : 0;
+    acc.push(+(last + (DATA.date_total[d]||0)).toFixed(2));
+    return acc;
+  }, []);
+  charts.cumulative = new Chart(document.getElementById('chartCumulative').getContext('2d'), {
+    type: 'line',
+    data: {
+      labels: DATA.dates.map(d => d.slice(5)),
+      datasets: [{
+        label: 'Cumulative Gross ($)',
+        data: cumVals,
+        borderColor: '#58a6ff',
+        backgroundColor: '#58a6ff15',
+        borderWidth: 2,
+        pointRadius: 5,
+        pointHoverRadius: 7,
+        fill: true,
+        tension: 0.3,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: c => ` $${c.raw.toFixed(2)}` } }
+      },
+      scales: {
+        y: { grid: { color: '#21262d' }, ticks: { callback: v=>`$${v}` }, beginAtZero: true },
+        x: { grid: { color: '#21262d' } }
+      }
+    }
+  });
+
+  const ms = Object.entries(DATA.model_total).sort((a,b)=>b[1]-a[1]);
+  const mL = ms.map(([m])=>m), mV = ms.map(([,v])=>+v.toFixed(2));
+  const mC = mL.map((_,i)=>PALETTE[i%PALETTE.length]);
+  charts.modelShare = new Chart(document.getElementById('chartModelShare').getContext('2d'), {
+    type: 'doughnut',
+    data: { labels: mL, datasets: [{ data: mV, backgroundColor: mC, borderWidth: 1, borderColor: '#0d1117' }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 }, color: '#8b949e' } },
+        tooltip: { callbacks: { label: c => ` ${c.label}: $${c.raw.toFixed(2)} (${(c.raw/DATA.grand_list*100).toFixed(1)}%)` } }
+      }
+    }
+  });
+
+  const dL = DATA.dates.map(d=>d.slice(5));
+  const dV = DATA.dates.map(d=>+(DATA.date_total[d]||0).toFixed(2));
+  charts.dateTotal = new Chart(document.getElementById('chartDateTotal').getContext('2d'), {
+    type: 'bar',
+    data: { labels: dL, datasets: [{ label: 'Gross ($)', data: dV,
+      backgroundColor: '#58a6ff80', borderColor: '#58a6ff', borderWidth: 1, borderRadius: 5, borderSkipped: false }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` $${c.raw.toFixed(2)}` } } },
+      scales: { y: { grid: { color: '#21262d' }, ticks: { callback: v=>`$${v}` } }, x: { grid: { display: false } } }
+    }
+  });
+}
+
+// =====================================================================
+// Table (with sort)
+// =====================================================================
+const SORT_COLS = ['rank','user','total','net','share','quota','model'];
+
+function sortedUsers() {
+  const { col, dir } = sortState;
+  const users = [...DATA.users]; // copy
+  const mul = dir === 'asc' ? 1 : -1;
+  users.sort((a, b) => {
+    let va, vb;
+    if (col === 'user')  { va = a.toLowerCase(); vb = b.toLowerCase(); return mul*(va<vb?-1:va>vb?1:0); }
+    if (col === 'total') { va = DATA.user_total[a]; vb = DATA.user_total[b]; }
+    else if (col === 'net')   { va = DATA.user_net[a]||0;   vb = DATA.user_net[b]||0; }
+    else if (col === 'share') { va = DATA.user_total[a]; vb = DATA.user_total[b]; } // same as total
+    else if (col === 'quota') {
+      const qa = DATA.user_quota[a]||1, qb = DATA.user_quota[b]||1;
+      va = (DATA.user_total[a]/0.01)/qa; vb = (DATA.user_total[b]/0.01)/qb;
+    }
+    else if (col === 'model') {
+      const ta = Object.entries(DATA.user_model[a]).sort((x,y)=>y[1]-x[1])[0];
+      const tb = Object.entries(DATA.user_model[b]).sort((x,y)=>y[1]-x[1])[0];
+      va = ta?ta[0]:''; vb = tb?tb[0]:'';
+      return mul*(va<vb?-1:va>vb?1:0);
+    }
+    else { va = DATA.user_total[a]; vb = DATA.user_total[b]; }
+    return mul*(va-vb); // desc(mul=-1): -(va-vb)=vb-va → higher first
+  });
+  return users;
+}
+
+function buildTable() {
+  const tbl = document.getElementById('tableMain');
+  const hasQ = Object.keys(DATA.user_quota).length > 0;
+  const maxVal = Math.max(...Object.values(DATA.user_total));
+
+  function thHTML(colKey, labelKey, tipKey, extraStyle='') {
+    const isActive = sortState.col === colKey;
+    const arrow = isActive ? (sortState.dir === 'desc' ? '▼' : '▲') : '⇅';
+    return `<th class="${isActive?'sort-active':''}" title="${t(tipKey)}" onclick="onSortClick('${colKey}')" style="${extraStyle}">
+      ${t(labelKey)}<span class="sort-icon">${arrow}</span>
+    </th>`;
+  }
+
+  tbl.innerHTML = `<tr>
+    <th style="cursor:default">${t('colRank')}</th>
+    ${thHTML('user','colUser','colUser')}
+    ${thHTML('total','colGross','tipGross')}
+    ${thHTML('net','colNet','tipNet')}
+    ${thHTML('share','colShare','tipShare')}
+    ${hasQ ? thHTML('quota','colQuota','tipQuota') : ''}
+    ${thHTML('model','colModel','tipModel')}
+  </tr>`;
+
+  const users = sortedUsers();
+  users.forEach((u, i) => {
+    const total   = DATA.user_total[u];
+    const net     = DATA.user_net[u] || 0;
+    const sharePct = (total / maxVal * 100).toFixed(1);
+    const color   = PALETTE[DATA.users.indexOf(u) % PALETTE.length];
+    const topModel = Object.entries(DATA.user_model[u]).sort((a,b)=>b[1]-a[1])[0];
+    const origRank = DATA.users.indexOf(u) + 1;
+
+    let quotaCell = '';
+    if (hasQ) {
+      const quota = DATA.user_quota[u];
+      if (quota) {
+        const usedCr = total / 0.01;
+        const qpct   = usedCr / quota * 100;
+        const over   = usedCr > quota;
+        const qBarW  = Math.min(qpct, 100).toFixed(1);
+        quotaCell = `<td>
+          <div class="bar-inline">
+            <div class="bar-bg"><div class="bar-fill ${over?'qbar-over':'qbar-ok'}" style="width:${qBarW}%"></div></div>
+            <span class="num" style="width:52px;text-align:right;font-size:0.78rem;color:${over?'#ff7b72':'#8b949e'}">${qpct.toFixed(0)}%</span>
+          </div>
+          <div style="font-size:0.72rem;color:#8b949e;margin-top:2px">${Math.round(usedCr).toLocaleString()} / ${quota.toLocaleString()} cr</div>
+        </td>`;
+      } else { quotaCell = '<td style="color:#8b949e">—</td>'; }
+    }
+
+    tbl.innerHTML += `<tr>
+      <td class="rank">${origRank}</td>
+      <td>${escapeHTML(u)}</td>
+      <td class="num">$${total.toFixed(2)}</td>
+      <td class="num" style="color:${net>0.001?'#d29922':'#3fb950'}">$${net.toFixed(2)}</td>
+      <td><div class="bar-inline">
+        <div class="bar-bg"><div class="bar-fill" style="width:${sharePct}%;background:${color}"></div></div>
+        <span class="num" style="width:42px;text-align:right;font-size:0.8rem;color:#8b949e">${sharePct}%</span>
+      </div></td>
+      ${quotaCell}
+      <td style="font-size:0.8rem;color:#8b949e">${escapeHTML(topModel?topModel[0]:'—')}</td>
+    </tr>`;
+  });
+}
+
+function onSortClick(col) {
+  if (sortState.col === col) {
+    sortState.dir = sortState.dir === 'desc' ? 'asc' : 'desc';
+  } else {
+    sortState.col = col;
+    sortState.dir = col === 'user' || col === 'model' ? 'asc' : 'desc';
+  }
+  document.getElementById('tableMain').innerHTML = '';
+  buildTable();
+}
+
+// Initial language application (before any file is loaded)
+applyLang();
+</script>
+</body>
+</html>
