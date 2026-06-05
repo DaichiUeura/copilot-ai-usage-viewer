@@ -672,7 +672,7 @@ function buildDaily() {
 }
 
 function buildOrg() {
-  // 累積 Gross ライン
+  // Cumulative gross line
   const cumVals = DATA.dates.reduce((acc, d) => {
     const last = acc.length > 0 ? acc[acc.length-1] : 0;
     acc.push(+(last + (DATA.date_total[d]||0)).toFixed(2));

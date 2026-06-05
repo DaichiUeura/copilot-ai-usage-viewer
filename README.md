@@ -3,6 +3,8 @@
 A browser-based visualizer for the GitHub Copilot AI Usage Report CSV.
 Drop in your billing export to explore spending by org, member, model, and day.
 
+**Live:** https://daichiueura.github.io/copilot-ai-usage-viewer/
+
 ## Usage
 
 1. Go to **GitHub → Billing → AI usage → Get usage report** and download the CSV.
