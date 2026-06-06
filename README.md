@@ -38,4 +38,25 @@ The resolved URL must be HTTP(S), and CSV files are limited to 10 MB.
 - **By Model** — stacked usage by member and model
 - **Daily Trend** — day-by-day usage for top members
 
+## Interpretation modes
+
+The viewer supports two usage bases and a comparison view:
+
+- **Actual consumption** — prefers AI credit-specific fields such as `aic_quantity` and `aic_gross_amount`
+- **GitHub UI compatible** — uses standard billing fields such as `quantity` and `gross_amount`
+- **Compare** — shows where those two interpretations diverge
+
+For the CSV interpretation policy used by this viewer, see [docs/csv-interpretation-policy.md](docs/csv-interpretation-policy.md).
+
 Supports EN / 日本語. Validates the CSV format on load.
+
+## Testing
+
+This repo includes minimal Playwright smoke tests that open `index.html` directly and load the bundled sample CSV.
+
+```bash
+npm install
+npx playwright install-deps chromium
+npx playwright install chromium
+npm run test:e2e
+```
