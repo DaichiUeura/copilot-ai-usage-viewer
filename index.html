@@ -485,32 +485,40 @@ document.getElementById('fileInput').addEventListener('change', e => {
 function loadFile(file) {
   const reader = new FileReader();
   reader.onload = e => {
-    const rows = parseCSV(e.target.result);
-    lastValidation = validate(rows);
-    DATA = aggregate(rows);
-    sortState = { col: 'total', dir: 'desc' };
-    showDashboard(file.name);
+    loadCSVText(e.target.result, file.name);
   };
   reader.readAsText(file, 'utf-8');
+}
+
+function loadCSVText(text, filename, tab = 'overview') {
+  const rows = parseCSV(text);
+  lastValidation = validate(rows);
+  DATA = aggregate(rows);
+  sortState = { col: 'total', dir: 'desc' };
+  showDashboard(filename, tab);
 }
 
 // =====================================================================
 // Dashboard rendering
 // =====================================================================
-function showDashboard(filename) {
+function showDashboard(filename, tab = 'overview') {
+  const active = ['overview','members','model','daily'].includes(tab) ? tab : 'overview';
   dropzone.style.display = 'none';
   dashboard.style.display = 'block';
   document.getElementById('headerMeta').textContent = filename;
-  activeTab = 'overview';
+  activeTab = active;
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.querySelector('[data-tab="overview"]').classList.add('active');
+  document.querySelector(`[data-tab="${active}"]`).classList.add('active');
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-  document.getElementById('overview').classList.add('active');
+  document.getElementById(active).classList.add('active');
   Object.values(charts).forEach(c => c.destroy());
   Object.keys(charts).forEach(k => delete charts[k]);
   document.getElementById('tableMain').innerHTML = '';
   applyLang();
-  buildOrg();
+  if (active === 'overview') buildOrg();
+  if (active === 'members') { buildTotal(); buildTable(); }
+  if (active === 'model') buildModel();
+  if (active === 'daily') buildDaily();
 }
 
 function renderSubtitle() {
@@ -845,6 +853,36 @@ function onSortClick(col) {
 
 // Initial language application (before any file is loaded)
 applyLang();
+
+const REMOTE_CSV_MAX_BYTES = 10 * 1024 * 1024;
+
+function csvURLFromQuery(value) {
+  if (!value) return null;
+  try {
+    const url = new URL(value, window.location.href);
+    if (!['http:', 'https:'].includes(url.protocol)) return null;
+    return url;
+  } catch {
+    return null;
+  }
+}
+
+async function loadCSVFromQuery() {
+  const params = new URLSearchParams(window.location.search);
+  const csvURL = csvURLFromQuery(params.get('csv'));
+  if (!csvURL) return;
+  const tab = params.get('tab') || 'overview';
+  try {
+    const res = await fetch(csvURL, { credentials: 'omit', referrerPolicy: 'no-referrer' });
+    if (!res.ok) return;
+    const length = Number(res.headers.get('content-length') || 0);
+    if (length > REMOTE_CSV_MAX_BYTES) return;
+    const text = await res.text();
+    if (text.length > REMOTE_CSV_MAX_BYTES) return;
+    loadCSVText(text, csvURL.pathname.split('/').pop() || csvURL.hostname, tab);
+  } catch (e) { console.error('Failed to load CSV from URL:', e); }
+}
+loadCSVFromQuery();
 </script>
 </body>
 </html>

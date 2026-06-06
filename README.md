@@ -3,7 +3,11 @@
 A browser-based visualizer for the GitHub Copilot AI Usage Report CSV.
 Drop in your billing export to explore spending by org, member, model, and day.
 
-**Live:** https://daichiueura.github.io/copilot-ai-usage-viewer/
+CSV data is processed in your browser and is not uploaded.
+
+![assets/readme-overview.png](assets/readme-overview.png)
+
+**Use in browser:** https://daichiueura.github.io/copilot-ai-usage-viewer/
 
 ## Usage
 
@@ -11,7 +15,21 @@ Drop in your billing export to explore spending by org, member, model, and day.
 2. Open `index.html` in your browser.
 3. Drop the CSV onto the page.
 
-CSV data is processed in your browser and is not uploaded.
+### Open a CSV from URL
+
+Use `csv=` to load a CSV by URL. Relative URLs work when the CSV is hosted on the same site:
+
+```text
+https://daichiueura.github.io/copilot-ai-usage-viewer/?csv=reports/ai-usage-report.csv&tab=overview
+```
+
+External URLs are supported when the CSV server allows cross-origin requests:
+
+```text
+https://daichiueura.github.io/copilot-ai-usage-viewer/?csv=https://example.com/ai-usage-report.csv&tab=overview
+```
+
+The resolved URL must be HTTP(S), and CSV files are limited to 10 MB.
 
 ## Views
 
