@@ -7,7 +7,7 @@ CSV data is processed in your browser and is not uploaded.
 
 ![assets/readme-overview.png](assets/readme-overview.png)
 
-**Use in browser:** https://daichiueura.github.io/copilot-ai-usage-viewer/
+**Use in browser:** https://daichiueura.github.io/copilot-ai-usage-viewer/ ([Demo](https://daichiueura.github.io/copilot-ai-usage-viewer/?csv=assets/sample-ai-usage-report.csv))
 
 ## Usage
 

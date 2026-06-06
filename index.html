@@ -531,7 +531,6 @@ function renderCostBadges() {
   const { grand_list, grand_net, grand_disc } = DATA;
   const coverPct = grand_list > 0 ? (grand_disc / grand_list * 100).toFixed(1) : '0.0';
   const hasMetered = grand_net > 0.001;
-  const netIcon  = hasMetered ? '!' : '';
   const netColor = hasMetered ? '#d29922' : '#3fb950';
   const netTip   = hasMetered ? t('tipBadgeNetX') : t('tipBadgeNet0');
   const netSub   = hasMetered ? t('meteredLabel') : t('coveredLabel');
@@ -542,7 +541,7 @@ function renderCostBadges() {
         <span class="cost-stat-value" style="color:#c9d1d9">$${grand_list.toFixed(2)}</span>
       </div>
       <div class="cost-stat" title="${netTip}">
-        <span class="cost-stat-label">${netIcon} ${t('badgeNet')}</span>
+        <span class="cost-stat-label">${t('badgeNet')}</span>
         <span class="cost-stat-value" style="color:${netColor}">$${grand_net.toFixed(2)} <span class="cost-stat-sub">${netSub}</span></span>
       </div>
       <div class="cost-stat" title="${t('tipBadgeCover')}">
