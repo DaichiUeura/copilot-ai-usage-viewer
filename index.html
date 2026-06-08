@@ -114,6 +114,8 @@
   .rank { color: #8b949e; font-size: 0.78rem; }
   .compare-table-wrap { overflow-x: auto; }
   .muted { color: #8b949e; }
+  .drop-disclaimer { margin-top: 4px; }
+  .menu-note { color: #6e7681; font-size: 0.72rem; line-height: 1.45; }
 </style>
 </head>
 <body>
@@ -130,6 +132,7 @@
     <input type="file" id="fileInput" accept=".csv">
   </div>
   <p class="note" data-i18n="dropNote">CSV data is processed in-browser only. It is not uploaded.</p>
+  <p class="note drop-disclaimer" data-i18n="dropDisclaimer">This view is an estimate based on the CSV you loaded. Actual billed amounts may differ.</p>
 </div>
 
 <!-- Dashboard -->
@@ -160,6 +163,9 @@
             <div class="menu-row">
               <button class="reset-btn" data-i18n="resetBtn" onclick="resetView()">← Load another file</button>
             </div>
+          </div>
+          <div class="menu-section">
+            <div class="menu-note" data-i18n="dashboardDisclaimer">This view is an estimate based on the CSV you loaded. Actual billed amounts may differ.</div>
           </div>
         </div>
     </div>
@@ -247,6 +253,8 @@ const I18N = {
     dropHint:    'Drop CSV file here',
     dropBtn:     'Select file',
     dropNote:    'CSV data is processed in-browser only. It is not uploaded.',
+    dropDisclaimer: 'This view is an estimate based on the CSV you loaded. Actual billed amounts may differ.',
+    dashboardDisclaimer: 'This view is an estimate based on the CSV you loaded. Actual billed amounts may differ.',
     resetBtn:    '← Load another file',
     langToggle:  '日本語',
     menuBtn:     'Menu',
@@ -342,6 +350,8 @@ const I18N = {
     dropHint:    'CSVファイルをここにドロップ',
     dropBtn:     'ファイルを選択',
     dropNote:    'CSVデータはブラウザ内のみで処理され、アップロードされません。',
+    dropDisclaimer: 'この表示は、読み込んだCSVをもとにした試算です。実際の請求額とは異なる場合があります。',
+    dashboardDisclaimer: 'この表示は、読み込んだCSVをもとにした試算です。実際の請求額とは異なる場合があります。',
     resetBtn:    '← 別のファイルを読む',
     langToggle:  'English',
     menuBtn:     'メニュー',
