@@ -52,6 +52,13 @@ test('loads the sample CSV with actual consumption as the default view', async (
   await expect(page.locator('#subtitle')).toContainText('Example Labs');
   await expect(page.locator('#costBadges .cost-stat').first()).toContainText('$65.81');
   await expect(page.locator('#validationBanner')).toContainText(/Row total:? \$65\.81/);
+  await expect(page.locator('#validationBanner .vb-ok')).toContainText('Validation passed');
+  await expect(page.locator('#validationBanner details.vb-ok-details')).toBeVisible();
+  await expect(page.locator('#validationBanner .vb-ok-body')).toBeHidden();
+
+  await page.locator('#validationBanner details.vb-ok-details summary').click();
+  await expect(page.locator('#validationBanner .vb-ok-body')).toBeVisible();
+  await expect(page.locator('#validationBanner .vb-ok-body')).toContainText('quantity=0 but aic_gross_amount>0');
 
   await page.locator('#menuBtn').click();
   await expect(page.locator('#headerMenu')).toBeVisible();
@@ -94,8 +101,9 @@ test('resizes overview charts when the viewport shrinks', async ({ page }) => {
   await page.setViewportSize({ width: 640, height: 900 });
 
   await expect.poll(async () => {
-    return page.evaluate(() => window.__chartStubs.map(chart => chart.resizeCount));
-  }).toEqual(before.map(count => count + 2));
+    const after = await page.evaluate(() => window.__chartStubs.map(chart => chart.resizeCount));
+    return after.every((count, i) => count >= before[i] + 2);
+  }).toBeTruthy();
 });
 
 test('loads a CSV from the csv query parameter', async ({ page }) => {

@@ -81,6 +81,12 @@
   .vb-icon { flex-shrink: 0; width: 18px; text-align: center; }
   .vb-text { color: #c9d1d9; }
   .vb-detail-msg { color: #8b949e; font-size: 0.78rem; margin-top: 2px; }
+  .vb-ok-wrap { display: flex; flex-direction: column; gap: 4px; margin-bottom: 2px; }
+  .vb-ok-details { color: #8b949e; font-size: 0.76rem; }
+  .vb-ok-details > summary { cursor: pointer; user-select: none; width: fit-content; }
+  .vb-ok-details > summary:hover { color: #c9d1d9; }
+  .vb-ok-body { border: 1px solid #21262d; border-radius: 8px; background: #161b22; padding: 6px 10px; margin-top: 6px; }
+  .vb-ok-body .vb-item:first-child { border-top: none; }
 
   /* Tabs */
   .tabs { display: flex; gap: 4px; margin-bottom: 20px; flex-wrap: wrap; }
@@ -322,6 +328,7 @@ const I18N = {
     vbOkText:      'Validation passed',
     vbOkInfo:      'info only',
     vbRowTotal:    'Row total',
+    vbViewDetails: 'View details',
     vbInfoTitle:   'Information',
     vbWarnTitle:   'Warnings — please review',
     vbErrTitle:    'Errors detected — values may be inaccurate',
@@ -417,6 +424,7 @@ const I18N = {
     vbOkText:      '検証済み',
     vbOkInfo:      '情報のみ',
     vbRowTotal:    '行合計',
+    vbViewDetails: '詳細を表示',
     vbInfoTitle:   '情報',
     vbWarnTitle:   '注意事項があります',
     vbErrTitle:    'エラーがあります — 値が不正確な可能性があります',
@@ -828,11 +836,33 @@ function renderCostBadges() {
 
 function renderValidation(v) {
   const el = document.getElementById('validationBanner');
-  if (v.level === 'ok' && v.issues.length === 0) {
-    const infoCount = v.issues.filter(i=>i.level==='info').length;
-    const infoStr = infoCount > 0 ? ` — ${infoCount} ${t('vbOkInfo')}` : '';
-    el.innerHTML = `<div class="vb-ok">${t('vbOkText')}${infoStr} <span class="vb-detail-ok">· ${t('vbRowTotal')} $${v.rowSum.toFixed(2)}</span></div>`;
-  } else {
+  if (v.level === 'ok') {
+    const infoIssues = v.issues.filter(i => i.level === 'info');
+    const hasHighImpactInfo = infoIssues.some(i => i.key === 'autoSwitchedCompatible');
+    if (!hasHighImpactInfo) {
+      const infoCount = infoIssues.length;
+      const infoStr = infoCount > 0 ? ` — ${infoCount} ${t('vbOkInfo')}` : '';
+      if (infoCount === 0) {
+        el.innerHTML = `<div class="vb-ok">${t('vbOkText')}${infoStr} <span class="vb-detail-ok">· ${t('vbRowTotal')} $${v.rowSum.toFixed(2)}</span></div>`;
+        return;
+      }
+      const iconMap = { info: '·' };
+      const items = infoIssues.map(i => {
+        const { text, detail } = fmtIssue(i);
+        return `<div class="vb-item"><span class="vb-icon">${iconMap[i.level]}</span><div><div class="vb-text">${escapeHTML(text)}</div><div class="vb-detail-msg">${escapeHTML(detail)}</div></div></div>`;
+      }).join('');
+      el.innerHTML = `<div class="vb-ok-wrap">
+        <div class="vb-ok">${t('vbOkText')}${infoStr} <span class="vb-detail-ok">· ${t('vbRowTotal')} $${v.rowSum.toFixed(2)}</span></div>
+        <details class="vb-ok-details">
+          <summary>${t('vbViewDetails')}</summary>
+          <div class="vb-ok-body">${items}</div>
+        </details>
+      </div>`;
+      return;
+    }
+  }
+
+  {
     const bannerLevel = v.level === 'ok' ? 'info' : v.level;
     const titleKey = bannerLevel === 'err' ? 'vbErrTitle' : bannerLevel === 'warn' ? 'vbWarnTitle' : 'vbInfoTitle';
     const iconMap  = { err:'×', warn:'!', info:'·' };
