@@ -69,9 +69,11 @@
   .vb-full { border-radius: 8px; overflow: hidden; border: 1px solid transparent; }
   .vb-full.warn { border-color: #9e6a03; background: #1f1500; }
   .vb-full.err  { border-color: #b91c1c; background: #1f0f0f; }
+  .vb-full.info { border-color: #1d4ed8; background: #0f172a; }
   .vb-header { display: flex; align-items: center; gap: 10px; padding: 10px 14px; cursor: pointer; user-select: none; font-size: 0.85rem; font-weight: 600; }
   .vb-full.warn .vb-header { color: #d29922; }
   .vb-full.err  .vb-header { color: #f87171; }
+  .vb-full.info .vb-header { color: #93c5fd; }
   .vb-chevron { margin-left: auto; font-size: 0.7rem; transition: transform 0.2s; }
   .vb-body { display: none; padding: 0 14px 12px; }
   .vb-body.open { display: block; }
@@ -320,6 +322,7 @@ const I18N = {
     vbOkText:      'Validation passed',
     vbOkInfo:      'info only',
     vbRowTotal:    'Row total',
+    vbInfoTitle:   'Information',
     vbWarnTitle:   'Warnings — please review',
     vbErrTitle:    'Errors detected — values may be inaccurate',
     vm: {
@@ -341,6 +344,8 @@ const I18N = {
                      d: ()    => 'Rows with empty username may be excluded.' },
       qty0Rows:    { t: p     => `${p.n} row(s): quantity=0 but aic_gross_amount>0 (dates: ${p.dates})`,
                      d: ()    => "Today's usage not yet finalized — aic_gross_amount is used. This is expected." },
+      autoSwitchedCompatible: { t: () => 'AI credit columns totalled 0, so the initial view switched to GitHub UI compatible.',
+                     d: () => 'Standard billing columns contained usage, and you can still switch back manually.' },
     },
   },
   ja: {
@@ -412,6 +417,7 @@ const I18N = {
     vbOkText:      '検証済み',
     vbOkInfo:      '情報のみ',
     vbRowTotal:    '行合計',
+    vbInfoTitle:   '情報',
     vbWarnTitle:   '注意事項があります',
     vbErrTitle:    'エラーがあります — 値が不正確な可能性があります',
     vm: {
@@ -433,6 +439,8 @@ const I18N = {
                      d: ()    => 'ユーザー名が空の行が除外されている可能性があります。' },
       qty0Rows:    { t: p     => `quantity=0 かつ aic_gross_amount>0 の行: ${p.n} 件（日付: ${p.dates}）`,
                      d: ()    => '当日分の請求がまだ確定していない行です（aic_gross_amount を使用中）。想定されるパターンです。' },
+      autoSwitchedCompatible: { t: () => 'AI credit 列の合計が 0 だったため、初期表示を GitHub UI compatible に切り替えました。',
+                     d: () => '標準課金列には使用量があるためそちらを表示しています。手動で actual に戻すこともできます。' },
     },
   },
 };
@@ -588,6 +596,24 @@ function buildDataSets(rows) {
   return { actual, compatible, compare: buildCompareData(actual, compatible) };
 }
 
+function sumColumn(rows, key) {
+  return rows.reduce((sum, row) => {
+    const value = parseFloat(row[key] || 0);
+    return sum + (isNaN(value) ? 0 : value);
+  }, 0);
+}
+
+function shouldAutoSwitchToCompatible(rows) {
+  if (rows.length === 0) return false;
+  const cols = Object.keys(rows[0]);
+  if (!hasColumn(cols, 'aic_gross_amount') || !hasColumn(cols, 'aic_quantity')) return false;
+  const aicGrossTotal = sumColumn(rows, 'aic_gross_amount');
+  const aicQuantityTotal = sumColumn(rows, 'aic_quantity');
+  const grossTotal = sumColumn(rows, 'gross_amount');
+  const quantityTotal = sumColumn(rows, 'quantity');
+  return aicGrossTotal === 0 && aicQuantityTotal === 0 && (grossTotal > 0 || quantityTotal > 0);
+}
+
 // =====================================================================
 // Validation — returns structured {key, p} issues
 // =====================================================================
@@ -621,7 +647,7 @@ function effectiveRaw(row, primaryKey, fallbackKey = null) {
   return { field: fallbackKey, raw: row[fallbackKey] };
 }
 
-function validate(rows, mode = 'actual') {
+function validate(rows, mode = 'actual', options = {}) {
   const issues = [];
   const spec = metricSpec(mode);
   const CORE_REQUIRED = ['date','username','model'];
@@ -676,6 +702,9 @@ function validate(rows, mode = 'actual') {
   if (mode === 'actual' && qty0.length > 0)
     issues.push({ key: 'qty0Rows', p: { n: qty0.length, dates: [...new Set(qty0.map(r=>r['date']))].join(', ') }, level: 'info' });
 
+  if (options.autoSwitchedToCompatible)
+    issues.push({ key: 'autoSwitchedCompatible', p: {}, level: 'info' });
+
   const level = issues.some(i=>i.level==='err') ? 'err' : issues.some(i=>i.level==='warn') ? 'warn' : 'ok';
   return { issues, level, rowSum };
 }
@@ -693,6 +722,8 @@ const charts = {};
 let sortState = { col: 'total', dir: 'desc' };
 let chartResizeFrame = null;
 let lastDetailTab = 'overview';
+let autoSwitchedToCompatible = false;
+let explicitModeOverride = false;
 
 // =====================================================================
 // File loading
@@ -711,6 +742,7 @@ document.getElementById('fileInput').addEventListener('change', e => {
 });
 
 function loadFile(file) {
+  explicitModeOverride = false;
   const reader = new FileReader();
   reader.onload = e => {
     loadCSVText(e.target.result, file.name);
@@ -721,9 +753,12 @@ function loadFile(file) {
 function loadCSVText(text, filename, tab = 'overview') {
   const rows = parseCSV(text);
   RAW_ROWS = rows;
-  lastValidation = validate(rows, activeMode);
   ALL_DATA = buildDataSets(rows);
+  const defaultMode = explicitModeOverride ? activeMode : 'actual';
+  autoSwitchedToCompatible = !explicitModeOverride && shouldAutoSwitchToCompatible(rows);
+  activeMode = autoSwitchedToCompatible ? 'compatible' : defaultMode;
   DATA = ALL_DATA[activeMode];
+  lastValidation = validate(rows, activeMode, { autoSwitchedToCompatible });
   currentFilename = filename;
   sortState = { col: 'total', dir: 'desc' };
   showDashboard(filename, tab);
@@ -793,18 +828,19 @@ function renderCostBadges() {
 
 function renderValidation(v) {
   const el = document.getElementById('validationBanner');
-  if (v.level === 'ok') {
+  if (v.level === 'ok' && v.issues.length === 0) {
     const infoCount = v.issues.filter(i=>i.level==='info').length;
     const infoStr = infoCount > 0 ? ` — ${infoCount} ${t('vbOkInfo')}` : '';
     el.innerHTML = `<div class="vb-ok">${t('vbOkText')}${infoStr} <span class="vb-detail-ok">· ${t('vbRowTotal')} $${v.rowSum.toFixed(2)}</span></div>`;
   } else {
-    const titleKey = v.level === 'err' ? 'vbErrTitle' : 'vbWarnTitle';
+    const bannerLevel = v.level === 'ok' ? 'info' : v.level;
+    const titleKey = bannerLevel === 'err' ? 'vbErrTitle' : bannerLevel === 'warn' ? 'vbWarnTitle' : 'vbInfoTitle';
     const iconMap  = { err:'×', warn:'!', info:'·' };
     const items = v.issues.map(i => {
       const { text, detail } = fmtIssue(i);
       return `<div class="vb-item"><span class="vb-icon">${iconMap[i.level]}</span><div><div class="vb-text">${escapeHTML(text)}</div><div class="vb-detail-msg">${escapeHTML(detail)}</div></div></div>`;
     }).join('');
-    el.innerHTML = `<div class="vb-full ${v.level}">
+    el.innerHTML = `<div class="vb-full ${bannerLevel}">
       <div class="vb-header" onclick="this.nextElementSibling.classList.toggle('open');this.querySelector('.vb-chevron').style.transform=this.nextElementSibling.classList.contains('open')?'rotate(180deg)':''">
         <span>${t(titleKey)}</span>
         <span style="margin-left:8px;font-size:0.78rem;color:#8b949e">${t('vbRowTotal')}: $${v.rowSum.toFixed(2)}</span>
@@ -820,7 +856,7 @@ function resetView() {
   dashboard.style.display = 'none';
   dropzone.style.display  = 'flex';
   document.getElementById('fileInput').value = '';
-  DATA = null; ALL_DATA = null; RAW_ROWS = null; lastValidation = null; currentFilename = ''; activeTab = 'overview';
+  DATA = null; ALL_DATA = null; RAW_ROWS = null; lastValidation = null; currentFilename = ''; activeTab = 'overview'; activeMode = 'actual'; autoSwitchedToCompatible = false; explicitModeOverride = false;
 }
 
 function toggleHeaderMenu(event) {
@@ -877,8 +913,9 @@ function setMode(mode) {
   if (!ALL_DATA || activeMode === mode) return;
   closeHeaderMenu();
   activeMode = mode;
+  autoSwitchedToCompatible = false;
   DATA = ALL_DATA[activeMode];
-  lastValidation = validate(RAW_ROWS || [], activeMode);
+  lastValidation = validate(RAW_ROWS || [], activeMode, { autoSwitchedToCompatible });
   rerenderDashboard();
 }
 
@@ -1276,7 +1313,10 @@ async function loadCSVFromQuery() {
   if (!csvURL) return;
   const tab = params.get('tab') || 'overview';
   const mode = params.get('mode');
-  if (mode === 'compatible') activeMode = 'compatible';
+  if (mode === 'actual' || mode === 'compatible') {
+    activeMode = mode;
+    explicitModeOverride = true;
+  }
   try {
     const res = await fetch(csvURL, { credentials: 'omit', referrerPolicy: 'no-referrer' });
     if (!res.ok) return;

@@ -4,7 +4,11 @@ const fs = require('fs');
 
 const appUrl = `file://${path.resolve(__dirname, '..', '..', 'index.html')}`;
 const sampleCsv = path.resolve(__dirname, '..', '..', 'assets', 'sample-ai-usage-report.csv');
+const aicAllZeroCsv = path.resolve(__dirname, 'fixtures', 'aic-all-zero-standard-usage.csv');
+const allZeroCsv = path.resolve(__dirname, 'fixtures', 'all-zero-usage.csv');
 const sampleCsvText = fs.readFileSync(sampleCsv, 'utf8');
+const aicAllZeroCsvText = fs.readFileSync(aicAllZeroCsv, 'utf8');
+const allZeroCsvText = fs.readFileSync(allZeroCsv, 'utf8');
 
 test.beforeEach(async ({ page }) => {
   await page.route('**/chart.umd.min.js', route => route.abort());
@@ -32,10 +36,14 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-async function loadSampleViaUpload(page) {
+async function loadCsvViaUpload(page, csvPath) {
   await page.goto(appUrl);
-  await page.locator('#fileInput').setInputFiles(sampleCsv);
+  await page.locator('#fileInput').setInputFiles(csvPath);
   await expect(page.locator('#dashboard')).toBeVisible();
+}
+
+async function loadSampleViaUpload(page) {
+  await loadCsvViaUpload(page, sampleCsv);
 }
 
 test('loads the sample CSV with actual consumption as the default view', async ({ page }) => {
@@ -43,7 +51,7 @@ test('loads the sample CSV with actual consumption as the default view', async (
 
   await expect(page.locator('#subtitle')).toContainText('Example Labs');
   await expect(page.locator('#costBadges .cost-stat').first()).toContainText('$65.81');
-  await expect(page.locator('#validationBanner')).toContainText('Row total $65.81');
+  await expect(page.locator('#validationBanner')).toContainText(/Row total:? \$65\.81/);
 
   await page.locator('#menuBtn').click();
   await expect(page.locator('#headerMenu')).toBeVisible();
@@ -57,7 +65,7 @@ test('switches view basis and opens compare from the header menu', async ({ page
   await page.locator('#menuBtn').click();
   await page.locator('#modeCompatibleBtn').click();
   await expect(page.locator('#costBadges .cost-stat').first()).toContainText('$40.41');
-  await expect(page.locator('#validationBanner')).toContainText('Row total $40.41');
+  await expect(page.locator('#validationBanner')).toContainText(/Row total:? \$40\.41/);
 
   await page.locator('#menuBtn').click();
   await page.locator('#compareViewBtn').click();
@@ -110,4 +118,58 @@ test('loads a CSV from the csv query parameter', async ({ page }) => {
   await expect(page.locator('#costBadges .cost-stat').first()).toContainText('$40.41');
   await page.locator('#menuBtn').click();
   await expect(page.locator('#modeCompatibleBtn')).toHaveClass(/active/);
+});
+
+test('auto-switches to compatible when AIC columns total zero but standard columns have usage', async ({ page }) => {
+  await loadCsvViaUpload(page, aicAllZeroCsv);
+
+  await expect(page.locator('#subtitle')).toContainText('Example Labs');
+  await expect(page.locator('#costBadges .cost-stat').first()).toContainText('$2.50');
+  await expect(page.locator('#validationBanner')).toContainText('GitHub UI compatible');
+
+  await page.locator('#menuBtn').click();
+  await expect(page.locator('#modeCompatibleBtn')).toHaveClass(/active/);
+  await expect(page.locator('#modeActualBtn')).not.toHaveClass(/active/);
+});
+
+test('respects an explicit actual mode query parameter even when auto-switch conditions match', async ({ page }) => {
+  await page.route('https://example.test/aic-all-zero-standard-usage.csv', route => {
+    route.fulfill({
+      status: 200,
+      headers: {
+        'access-control-allow-origin': '*',
+        'content-type': 'text/csv; charset=utf-8',
+      },
+      body: aicAllZeroCsvText,
+    });
+  });
+
+  await page.goto(`${appUrl}?csv=https://example.test/aic-all-zero-standard-usage.csv&mode=actual`);
+
+  await expect(page.locator('#dashboard')).toBeVisible();
+  await expect(page.locator('#costBadges .cost-stat').first()).toContainText('$0.00');
+  await expect(page.locator('#validationBanner')).not.toContainText('GitHub UI compatible');
+  await page.locator('#menuBtn').click();
+  await expect(page.locator('#modeActualBtn')).toHaveClass(/active/);
+});
+
+test('keeps actual mode for all-zero files with no standard usage', async ({ page }) => {
+  await page.route('https://example.test/all-zero-usage.csv', route => {
+    route.fulfill({
+      status: 200,
+      headers: {
+        'access-control-allow-origin': '*',
+        'content-type': 'text/csv; charset=utf-8',
+      },
+      body: allZeroCsvText,
+    });
+  });
+
+  await page.goto(`${appUrl}?csv=https://example.test/all-zero-usage.csv`);
+
+  await expect(page.locator('#dashboard')).toBeVisible();
+  await expect(page.locator('#costBadges .cost-stat').first()).toContainText('$0.00');
+  await expect(page.locator('#validationBanner')).toContainText(/Row total:? \$0\.00/);
+  await page.locator('#menuBtn').click();
+  await expect(page.locator('#modeActualBtn')).toHaveClass(/active/);
 });

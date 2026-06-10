@@ -1,0 +1,4 @@
+"date","username","product","sku","model","quantity","unit_type","applied_cost_per_quantity","gross_amount","discount_amount","net_amount","total_monthly_quota","organization","repository","cost_center_name","aic_quantity","aic_gross_amount"
+"2026-06-01","alpha-user","copilot","copilot_ai_credit","GPT-5.4","120","ai-credits","0.01","1.20","1.20","0","1900","Example Labs","","example-cost-center","0","0"
+"2026-06-01","beta-user","copilot","copilot_ai_credit","Claude Sonnet 4.6","80","ai-credits","0.01","0.80","0.80","0","1900","Example Labs","","example-cost-center","0","0"
+"2026-06-02","alpha-user","copilot","copilot_ai_credit","GPT-5.4","50","ai-credits","0.01","0.50","0.50","0","1900","Example Labs","","example-cost-center","0","0"
