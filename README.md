@@ -38,13 +38,12 @@ The resolved URL must be HTTP(S), and CSV files are limited to 10 MB.
 - **By Model** — stacked usage by member and model
 - **Daily Trend** — day-by-day usage for top members
 
-## Interpretation modes
+## How usage is interpreted
 
-The viewer supports two usage bases and a comparison view:
-
-- **Actual consumption** — prefers AI credit-specific fields such as `aic_quantity` and `aic_gross_amount`
-- **GitHub UI compatible** — uses standard billing fields such as `quantity` and `gross_amount`
-- **Compare** — shows where those two interpretations diverge
+The viewer aggregates usage from the standard billing columns (`gross_amount` /
+`net_amount` / `quantity`). The `aic_quantity` / `aic_gross_amount` preview columns
+were [deprecated and zeroed by GitHub on 2026-06-01](https://github.blog/changelog/2026-06-11-ai-usage-report-updates/),
+so they are ignored.
 
 For the CSV interpretation policy used by this viewer, see [docs/csv-interpretation-policy.md](docs/csv-interpretation-policy.md).
 

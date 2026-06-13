@@ -4,11 +4,10 @@ const fs = require('fs');
 
 const appUrl = `file://${path.resolve(__dirname, '..', '..', 'index.html')}`;
 const sampleCsv = path.resolve(__dirname, '..', '..', 'assets', 'sample-ai-usage-report.csv');
-const aicAllZeroCsv = path.resolve(__dirname, 'fixtures', 'aic-all-zero-standard-usage.csv');
+const standardUsageCsv = path.resolve(__dirname, 'fixtures', 'aic-all-zero-standard-usage.csv');
 const allZeroCsv = path.resolve(__dirname, 'fixtures', 'all-zero-usage.csv');
 const meteredCsv = path.resolve(__dirname, 'fixtures', 'metered-usage.csv');
 const sampleCsvText = fs.readFileSync(sampleCsv, 'utf8');
-const aicAllZeroCsvText = fs.readFileSync(aicAllZeroCsv, 'utf8');
 const allZeroCsvText = fs.readFileSync(allZeroCsv, 'utf8');
 
 test.beforeEach(async ({ page }) => {
@@ -47,45 +46,21 @@ async function loadSampleViaUpload(page) {
   await loadCsvViaUpload(page, sampleCsv);
 }
 
-test('loads the sample CSV with actual consumption as the default view', async ({ page }) => {
+test('loads the sample CSV and totals the standard billing columns', async ({ page }) => {
   await loadSampleViaUpload(page);
 
   await expect(page.locator('#subtitle')).toContainText('Example Labs');
-  await expect(page.locator('#costBadges .cost-stat').first()).toContainText('$73.03');
-  await expect(page.locator('#validationBanner')).toContainText(/Row total:? \$73\.03/);
-  await expect(page.locator('#validationBanner .vb-ok')).toContainText('Validation passed');
-
-  await page.locator('#menuBtn').click();
-  await expect(page.locator('#headerMenu')).toBeVisible();
-  await expect(page.locator('#modeActualBtn')).toHaveClass(/active/);
-  await expect(page.locator('#modeActualBtn')).toHaveAttribute('title', /AI credit-specific|AI credit専用列/);
-});
-
-test('switches view basis and opens compare from the header menu', async ({ page }) => {
-  await loadSampleViaUpload(page);
-
-  await page.locator('#menuBtn').click();
-  await page.locator('#modeCompatibleBtn').click();
+  // Single basis = standard gross_amount column ($72.08)
   await expect(page.locator('#costBadges .cost-stat').first()).toContainText('$72.08');
   await expect(page.locator('#validationBanner')).toContainText(/Row total:? \$72\.08/);
+  await expect(page.locator('#validationBanner .vb-ok')).toContainText('Validation passed');
 
+  // Mode switch and Compare view have been removed
   await page.locator('#menuBtn').click();
-  await page.locator('#compareViewBtn').click();
-
-  await expect(page.locator('#compare.panel.active')).toBeVisible();
-  await expect(page.locator('#detailTabs')).toBeHidden();
-  await page.locator('#menuBtn').click();
-  await expect(page.locator('#modeSwitch')).toBeHidden();
-  await expect(page.locator('#compareSummary')).toContainText('$0.95');
-  await expect(page.locator('#compareSummary')).toContainText('95');
-  await expect(page.locator('#tableCompare')).toContainText('2026-06-03');
-  await expect(page.locator('#tableCompare')).toContainText('$14.78');
-
-  await page.locator('#compareViewBtn').click();
-  await expect(page.locator('#overview.panel.active')).toBeVisible();
-  await expect(page.locator('#detailTabs')).toBeVisible();
-  await page.locator('#menuBtn').click();
-  await expect(page.locator('#modeSwitch')).toBeVisible();
+  await expect(page.locator('#headerMenu')).toBeVisible();
+  await expect(page.locator('#modeActualBtn')).toHaveCount(0);
+  await expect(page.locator('#modeCompatibleBtn')).toHaveCount(0);
+  await expect(page.locator('#compareViewBtn')).toHaveCount(0);
 });
 
 test('resizes overview charts when the viewport shrinks', async ({ page }) => {
@@ -113,50 +88,15 @@ test('loads a CSV from the csv query parameter', async ({ page }) => {
     });
   });
 
-  await page.goto(`${appUrl}?csv=https://example.test/sample-ai-usage-report.csv&tab=members&mode=compatible`);
+  await page.goto(`${appUrl}?csv=https://example.test/sample-ai-usage-report.csv&tab=members`);
 
   await expect(page.locator('#dashboard')).toBeVisible();
   await expect(page.locator('#members.panel.active')).toBeVisible();
   await expect(page.locator('#headerMeta')).toHaveText('sample-ai-usage-report.csv');
   await expect(page.locator('#costBadges .cost-stat').first()).toContainText('$72.08');
-  await page.locator('#menuBtn').click();
-  await expect(page.locator('#modeCompatibleBtn')).toHaveClass(/active/);
 });
 
-test('auto-switches to compatible when AIC columns total zero but standard columns have usage', async ({ page }) => {
-  await loadCsvViaUpload(page, aicAllZeroCsv);
-
-  await expect(page.locator('#subtitle')).toContainText('Example Labs');
-  await expect(page.locator('#costBadges .cost-stat').first()).toContainText('$2.50');
-  await expect(page.locator('#validationBanner')).toContainText('GitHub UI compatible');
-
-  await page.locator('#menuBtn').click();
-  await expect(page.locator('#modeCompatibleBtn')).toHaveClass(/active/);
-  await expect(page.locator('#modeActualBtn')).not.toHaveClass(/active/);
-});
-
-test('respects an explicit actual mode query parameter even when auto-switch conditions match', async ({ page }) => {
-  await page.route('https://example.test/aic-all-zero-standard-usage.csv', route => {
-    route.fulfill({
-      status: 200,
-      headers: {
-        'access-control-allow-origin': '*',
-        'content-type': 'text/csv; charset=utf-8',
-      },
-      body: aicAllZeroCsvText,
-    });
-  });
-
-  await page.goto(`${appUrl}?csv=https://example.test/aic-all-zero-standard-usage.csv&mode=actual`);
-
-  await expect(page.locator('#dashboard')).toBeVisible();
-  await expect(page.locator('#costBadges .cost-stat').first()).toContainText('$0.00');
-  await expect(page.locator('#validationBanner')).not.toContainText('GitHub UI compatible');
-  await page.locator('#menuBtn').click();
-  await expect(page.locator('#modeActualBtn')).toHaveClass(/active/);
-});
-
-test('keeps actual mode for all-zero files with no standard usage', async ({ page }) => {
+test('renders an all-zero file with zero totals', async ({ page }) => {
   await page.route('https://example.test/all-zero-usage.csv', route => {
     route.fulfill({
       status: 200,
@@ -173,8 +113,6 @@ test('keeps actual mode for all-zero files with no standard usage', async ({ pag
   await expect(page.locator('#dashboard')).toBeVisible();
   await expect(page.locator('#costBadges .cost-stat').first()).toContainText('$0.00');
   await expect(page.locator('#validationBanner')).toContainText(/Row total:? \$0\.00/);
-  await page.locator('#menuBtn').click();
-  await expect(page.locator('#modeActualBtn')).toHaveClass(/active/);
 });
 
 // Helper to get a chart stub's config by canvas element id
@@ -235,8 +173,10 @@ test('overview daily-total chart is stacked covered/metered bars', async ({ page
 });
 
 test('overview cumulative chart has single dataset when all usage is pool-covered', async ({ page }) => {
-  // aic-all-zero auto-switches to compatible mode; net_amount = 0 throughout
-  await loadCsvViaUpload(page, aicAllZeroCsv);
+  // standard usage with net_amount = 0 throughout → no metered line
+  await loadCsvViaUpload(page, standardUsageCsv);
+
+  await expect(page.locator('#costBadges .cost-stat').first()).toContainText('$2.50');
 
   const cumConfig = await getChartConfig(page, 'chartCumulative');
   expect(cumConfig.data.datasets).toHaveLength(1);

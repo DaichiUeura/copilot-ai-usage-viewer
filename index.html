@@ -34,9 +34,6 @@
   .menu-section + .menu-section { margin-top: 10px; padding-top: 10px; border-top: 1px solid #21262d; }
   .menu-label { color: #8b949e; font-size: 0.72rem; letter-spacing: 0.04em; text-transform: uppercase; }
   .menu-row { display: flex; gap: 8px; align-items: center; }
-  .menu-row .mode-switch { width: 100%; }
-  .menu-row .mode-btn { flex: 1; }
-  .menu-row .compare-btn,
   .menu-row .lang-btn,
   .menu-row .reset-btn { width: 100%; text-align: left; }
   .lang-btn { padding: 4px 10px; border-radius: 5px; border: 1px solid #30363d; background: transparent; color: #8b949e; cursor: pointer; font-size: 0.78rem; transition: all 0.15s; }
@@ -44,15 +41,6 @@
   .reset-btn { padding: 5px 12px; border-radius: 6px; border: 1px solid #30363d; background: transparent; color: #8b949e; cursor: pointer; font-size: 0.78rem; }
   .reset-btn:hover { color: #c9d1d9; border-color: #8b949e; }
   .subtitle { color: #8b949e; font-size: 0.82rem; margin-bottom: 12px; }
-  .mode-switch { display: inline-flex; border: 1px solid #30363d; border-radius: 8px; overflow: hidden; background: #161b22; }
-  .mode-btn { padding: 6px 10px; border: none; background: transparent; color: #8b949e; cursor: pointer; font-size: 0.78rem; transition: all 0.15s; }
-  .mode-btn + .mode-btn { border-left: 1px solid #30363d; }
-  .mode-btn:hover { color: #c9d1d9; background: #21262d; }
-  .mode-btn.active { color: #f0f6fc; background: #21262d; }
-  .compare-btn { padding: 6px 10px; border-radius: 8px; border: 1px solid #30363d; background: transparent; color: #8b949e; cursor: pointer; font-size: 0.78rem; transition: all 0.15s; }
-  .compare-btn:hover { color: #c9d1d9; border-color: #8b949e; }
-  .compare-btn.active { color: #f0f6fc; background: #21262d; border-color: #30363d; }
-  .mode-note { display: none; }
 
   /* Cost stat bar */
   .cost-bar { display: flex; gap: 0; margin-bottom: 12px; background: #161b22; border: 1px solid #21262d; border-radius: 8px; overflow: hidden; width: fit-content; }
@@ -81,12 +69,6 @@
   .vb-icon { flex-shrink: 0; width: 18px; text-align: center; }
   .vb-text { color: #c9d1d9; }
   .vb-detail-msg { color: #8b949e; font-size: 0.78rem; margin-top: 2px; }
-  .vb-ok-wrap { display: flex; flex-direction: column; gap: 4px; margin-bottom: 2px; }
-  .vb-ok-details { color: #8b949e; font-size: 0.76rem; }
-  .vb-ok-details > summary { cursor: pointer; user-select: none; width: fit-content; }
-  .vb-ok-details > summary:hover { color: #c9d1d9; }
-  .vb-ok-body { border: 1px solid #21262d; border-radius: 8px; background: #161b22; padding: 6px 10px; margin-top: 6px; }
-  .vb-ok-body .vb-item:first-child { border-top: none; }
 
   /* Tabs */
   .tabs { display: flex; gap: 4px; margin-bottom: 20px; flex-wrap: wrap; }
@@ -120,7 +102,6 @@
   .qbar-over { background: #ff7b72; }
   .num { font-variant-numeric: tabular-nums; }
   .rank { color: #8b949e; font-size: 0.78rem; }
-  .compare-table-wrap { overflow-x: auto; }
   .muted { color: #8b949e; }
   .drop-disclaimer { margin-top: 4px; }
   .menu-note { color: #6e7681; font-size: 0.72rem; line-height: 1.45; }
@@ -151,18 +132,6 @@
     <div class="header-actions">
         <button class="menu-btn" id="menuBtn" data-i18n="menuBtn" aria-haspopup="true" aria-expanded="false" onclick="toggleHeaderMenu(event)">Menu</button>
         <div class="menu-panel" id="headerMenu" hidden>
-          <div class="menu-section">
-            <div class="menu-label" data-i18n="menuViewLabel">View</div>
-            <div class="menu-row">
-              <div class="mode-switch" id="modeSwitch" aria-label="View basis">
-                <button class="mode-btn active" id="modeActualBtn" onclick="setMode('actual')">Actual consumption</button>
-                <button class="mode-btn" id="modeCompatibleBtn" onclick="setMode('compatible')">GitHub UI compatible</button>
-              </div>
-            </div>
-            <div class="menu-row">
-              <button class="compare-btn" id="compareViewBtn" onclick="openCompare()">Compare</button>
-            </div>
-          </div>
           <div class="menu-section">
             <div class="menu-label" data-i18n="menuSettingsLabel">Settings</div>
             <div class="menu-row">
@@ -227,26 +196,6 @@
       <div class="chart-wrap" style="height:380px"><canvas id="chartDaily"></canvas></div>
     </div>
   </div>
-  <div id="compare" class="panel">
-    <div class="chart-card">
-      <div class="chart-title" data-i18n="ctCompareSummary"></div>
-      <div class="cost-badges" id="compareSummary"></div>
-    </div>
-    <div class="grid-2">
-      <div class="chart-card">
-        <div class="chart-title" data-i18n="ctCompareDaily"></div>
-        <div class="chart-wrap" style="height:260px"><canvas id="chartCompareDaily"></canvas></div>
-      </div>
-      <div class="chart-card">
-        <div class="chart-title" data-i18n="ctCompareModel"></div>
-        <div class="chart-wrap" style="height:260px"><canvas id="chartCompareModel"></canvas></div>
-      </div>
-    </div>
-    <div class="chart-card">
-      <div class="chart-title" data-i18n="ctCompareTable"></div>
-      <div class="compare-table-wrap"><table id="tableCompare"></table></div>
-    </div>
-  </div>
 </div>
 
 <script>
@@ -266,13 +215,7 @@ const I18N = {
     resetBtn:    '← Load another file',
     langToggle:  '日本語',
     menuBtn:     'Menu',
-    menuViewLabel: 'View',
     menuSettingsLabel: 'Settings',
-    modeActual:  'Actual consumption',
-    modeCompatible: 'GitHub UI compatible',
-    compareBtn:  'Compare',
-    modeNoteActual: 'Uses AI credit-specific columns when available.',
-    modeNoteCompatible: 'Uses standard billing columns to stay close to GitHub UI usage views.',
     members:     'members',
     separator:   '–',
     // tabs
@@ -288,10 +231,6 @@ const I18N = {
     ctModelShare:  'Model Share',
     ctDateTotal:   'Daily Total',
     ctTable:       'Member Detail',
-    ctCompareSummary: 'View Comparison',
-    ctCompareDaily:   'Daily Gross Delta',
-    ctCompareModel:   'Model Gross Delta',
-    ctCompareTable:   'Daily Comparison',
     // table headers + tooltips
     colRank:    '#',
     colDate:    'Date',
@@ -301,9 +240,6 @@ const I18N = {
     colShare:   'Usage Share',
     colQuota:   'vs. Quota',
     colModel:   'Top Model',
-    colActual:  'Actual consumption',
-    colCompatible: 'GitHub UI compatible',
-    colDelta:   'Delta',
     tipGross:   'Total GitHub AI Credits consumed at list price ($0.01/credit). Gross amount before discounts.',
     tipNet:     'Actual billed amount after included usage is applied. $0.00 = fully covered by AI credit pool.',
     tipShare:   'Share of total gross usage among all members in this report.',
@@ -316,9 +252,6 @@ const I18N = {
     badgeNet:      'Net',
     badgeNetWarn:  'Net',
     badgeCovered:  'Covered',
-    badgeCompareGross: 'Gross delta',
-    badgeCompareCredits: 'Credits delta',
-    badgeCompareDays: 'Mismatch days',
     tipBadgeGross: 'Total GitHub AI Credits consumed across all members at list price ($0.01/credit)',
     tipBadgeNet0:  'Actual billed amount. $0.00 = all usage covered by included AI credits (AI credit pool)',
     tipBadgeNetX:  'Actual billed amount including metered usage beyond included AI credits',
@@ -328,9 +261,7 @@ const I18N = {
     // validation
     vbOkLabel:     '',
     vbOkText:      'Validation passed',
-    vbOkInfo:      'info only',
     vbRowTotal:    'Row total',
-    vbViewDetails: 'View details',
     vbInfoTitle:   'Information',
     vbWarnTitle:   'Warnings — please review',
     vbErrTitle:    'Errors detected — values may be inaccurate',
@@ -339,22 +270,14 @@ const I18N = {
                      d: ()    => 'The CSV appears to be empty or header-only.' },
       missingCols: { t: p     => `Required columns not found: ${p.cols}`,
                      d: ()    => 'This may not be a GitHub Copilot AI Usage Report CSV.' },
-      missingModeCols: { t: p => `Columns needed for ${t(p.mode === 'compatible' ? 'modeCompatible' : 'modeActual')} not found: ${p.cols}`,
-             d: ()    => 'The selected interpretation may be incomplete or unavailable.' },
-      actualFallback: { t: p  => `AI credit-specific column not found: ${p.cols}`,
-             d: ()    => 'Actual consumption is using the standard billing fallback columns where possible.' },
       parseErrors: { t: p     => `${p.n} row(s) with unparseable ${p.field}`,
                      d: p     => `e.g. ${p.ex}` },
       emptyFields: { t: p     => `${p.n} row(s) missing username / model / date`,
                      d: ()    => 'These rows are excluded from aggregation.' },
       negRows:     { t: p     => `${p.n} row(s) with negative ${p.field}`,
                      d: ()    => 'May indicate refunds or adjustments. Verify totals.' },
-      sumMismatch: { t: p     => `SUM mismatch (${t(p.mode === 'compatible' ? 'modeCompatible' : 'modeActual')}): row total $${p.row} ≠ aggregated $${p.agg} (diff $${p.diff})`,
+      sumMismatch: { t: p     => `SUM mismatch: row total $${p.row} ≠ aggregated $${p.agg} (diff $${p.diff})`,
                      d: ()    => 'Rows with empty username may be excluded.' },
-      qty0Rows:    { t: p     => `${p.n} row(s): quantity=0 but aic_gross_amount>0 (dates: ${p.dates})`,
-                     d: ()    => "Today's usage not yet finalized — aic_gross_amount is used. This is expected." },
-      autoSwitchedCompatible: { t: () => 'AI credit columns totalled 0, so the initial view switched to GitHub UI compatible.',
-                     d: () => 'Standard billing columns contained usage, and you can still switch back manually.' },
     },
   },
   ja: {
@@ -369,13 +292,7 @@ const I18N = {
     resetBtn:    '← 別のファイルを読む',
     langToggle:  'English',
     menuBtn:     'メニュー',
-    menuViewLabel: '表示',
     menuSettingsLabel: '設定',
-    modeActual:  'Actual consumption',
-    modeCompatible: 'GitHub UI compatible',
-    compareBtn:  'Compare',
-    modeNoteActual: 'AI クレジット専用列を優先して集計します。',
-    modeNoteCompatible: 'GitHub UI の使用量表示に近づけるため標準課金列を使います。',
     members:     '名',
     separator:   '〜',
     tabOverview: '概要',
@@ -389,10 +306,6 @@ const I18N = {
     ctModelShare:  'モデルシェア',
     ctDateTotal:   '日別合計',
     ctTable:       'メンバー詳細',
-    ctCompareSummary: '表示基準の比較',
-    ctCompareDaily:   '日別 Gross 差分',
-    ctCompareModel:   'モデル別 Gross 差分',
-    ctCompareTable:   '日別比較',
     colRank:    '#',
     colDate:    '日付',
     colUser:    'ユーザー',
@@ -401,9 +314,6 @@ const I18N = {
     colShare:   '使用シェア',
     colQuota:   '月次クォータ比',
     colModel:   '主なモデル',
-    colActual:  'Actual consumption',
-    colCompatible: 'GitHub UI compatible',
-    colDelta:   '差分',
     tipGross:   'AI クレジットの定価合計（$0.01/credit）。割引適用前の Gross 金額。',
     tipNet:     '割引後の実請求額。$0.00 = AI credit pool の included usage でカバー済み。',
     tipShare:   'このレポート内の全メンバー合計に対するグロス使用量のシェア。',
@@ -415,9 +325,6 @@ const I18N = {
     badgeNet:      'Net',
     badgeNetWarn:  'Net',
     badgeCovered:  'Covered',
-    badgeCompareGross: 'Gross 差分',
-    badgeCompareCredits: 'クレジット差分',
-    badgeCompareDays: '差分のある日数',
     tipBadgeGross: '全メンバーの GitHub AI クレジット使用量の定価合計（$0.01/credit）',
     tipBadgeNet0:  '実請求額。$0.00 = すべて included AI credits（AI credit pool）でカバー済み',
     tipBadgeNetX:  '実請求額。included AI credits を超えた従量課金（metered usage）を含む',
@@ -426,9 +333,7 @@ const I18N = {
     meteredLabel:  '従量課金（Metered usage）あり',
     vbOkLabel:     '',
     vbOkText:      '検証済み',
-    vbOkInfo:      '情報のみ',
     vbRowTotal:    '行合計',
-    vbViewDetails: '詳細を表示',
     vbInfoTitle:   '情報',
     vbWarnTitle:   '注意事項があります',
     vbErrTitle:    'エラーがあります — 値が不正確な可能性があります',
@@ -437,22 +342,14 @@ const I18N = {
                      d: ()    => 'CSV が空か、ヘッダーのみです。' },
       missingCols: { t: p     => `必須カラムが見つかりません: ${p.cols}`,
                      d: ()    => 'AI Usage Report CSV 以外が読み込まれた可能性があります。' },
-      missingModeCols: { t: p => `${t(p.mode === 'compatible' ? 'modeCompatible' : 'modeActual')} に必要なカラムが見つかりません: ${p.cols}`,
-             d: ()    => '選択中の解釈で必要な値を完全には集計できない可能性があります。' },
-      actualFallback: { t: p  => `AI クレジット専用カラムが見つかりません: ${p.cols}`,
-             d: ()    => 'Actual consumption は、利用可能な標準課金カラムを fallback として使用しています。' },
       parseErrors: { t: p     => `${p.field} を数値として読み取れない行: ${p.n} 件`,
                      d: p     => `例: ${p.ex}` },
       emptyFields: { t: p     => `username / model / date のいずれかが空の行: ${p.n} 件`,
                      d: ()    => 'これらの行は集計から除外されます。' },
       negRows:     { t: p     => `${p.field} が負の行: ${p.n} 件`,
                      d: ()    => '返金・調整が含まれています。合計が意図通りか確認してください。' },
-      sumMismatch: { t: p     => `SUM 不一致（${t(p.mode === 'compatible' ? 'modeCompatible' : 'modeActual')}）: 行合計 $${p.row} ≠ 集計合計 $${p.agg}（差: $${p.diff}）`,
+      sumMismatch: { t: p     => `SUM 不一致: 行合計 $${p.row} ≠ 集計合計 $${p.agg}（差: $${p.diff}）`,
                      d: ()    => 'ユーザー名が空の行が除外されている可能性があります。' },
-      qty0Rows:    { t: p     => `quantity=0 かつ aic_gross_amount>0 の行: ${p.n} 件（日付: ${p.dates}）`,
-                     d: ()    => '当日分の請求がまだ確定していない行です（aic_gross_amount を使用中）。想定されるパターンです。' },
-      autoSwitchedCompatible: { t: () => 'AI credit 列の合計が 0 だったため、初期表示を GitHub UI compatible に切り替えました。',
-                     d: () => '標準課金列には使用量があるためそちらを表示しています。手動で actual に戻すこともできます。' },
     },
   },
 };
@@ -484,9 +381,6 @@ function applyLang() {
   document.querySelector('title').textContent = t('pageTitle');
   document.getElementById('langToggle').textContent = t('langToggle');
   document.getElementById('menuBtn').textContent = t('menuBtn');
-  document.getElementById('modeActualBtn').textContent = t('modeActual');
-  document.getElementById('modeCompatibleBtn').textContent = t('modeCompatible');
-  document.getElementById('compareViewBtn').textContent = t('compareBtn');
   const dlt = document.getElementById('dropLangToggle');
   if (dlt) dlt.textContent = t('langToggle');
 
@@ -498,14 +392,10 @@ function applyLang() {
   // Dynamic content (only when data is loaded)
   if (DATA) {
     renderSubtitle();
-    renderModeControls();
     renderCostBadges();
     renderValidation(lastValidation);
     document.getElementById('tableMain').innerHTML = '';
-    if (activeTab === 'compare') {
-      renderCompareSummary();
-      buildCompareTable();
-    } else if (activeTab === 'members') {
+    if (activeTab === 'members') {
       buildTable();
     }
   }
@@ -541,18 +431,14 @@ function metricValue(row, primaryKey, fallbackKey = null) {
   return 0;
 }
 
-function aggregate(rows, mode = 'actual') {
+function aggregate(rows) {
   const user_total = {}, user_model = {}, user_date = {};
   const model_total = {}, date_total = {}, date_net = {};
   const user_quota = {}, user_net = {};
   let grand_qty = 0;
-  const amountKey = mode === 'actual' ? 'aic_gross_amount' : 'gross_amount';
-  const amountFallback = mode === 'actual' ? 'gross_amount' : null;
-  const quantityKey = mode === 'actual' ? 'aic_quantity' : 'quantity';
-  const quantityFallback = mode === 'actual' ? 'quantity' : null;
   rows.forEach(r => {
-    const amt = metricValue(r, amountKey, amountFallback);
-    const qty = metricValue(r, quantityKey, quantityFallback);
+    const amt = metricValue(r, 'gross_amount');
+    const qty = metricValue(r, 'quantity');
     const net = parseFloat(r['net_amount'] || 0);
     const u = r['username'], m = r['model'], d = r['date'];
     if (!u || !m || !d) return;
@@ -580,90 +466,20 @@ function aggregate(rows, mode = 'actual') {
            model_total, date_total, date_net, grand_list, grand_net, grand_disc, grand_qty };
 }
 
-function buildCompareData(actual, compatible) {
-  const dates = [...new Set([...actual.dates, ...compatible.dates])].sort();
-  const models = [...new Set([...actual.models, ...compatible.models])].sort();
-  const dayRows = dates.map(date => {
-    const actualGross = actual.date_total[date] || 0;
-    const compatibleGross = compatible.date_total[date] || 0;
-    return { date, actual: actualGross, compatible: compatibleGross, delta: actualGross - compatibleGross };
-  });
-  const modelRows = models.map(model => {
-    const actualGross = actual.model_total[model] || 0;
-    const compatibleGross = compatible.model_total[model] || 0;
-    return { model, actual: actualGross, compatible: compatibleGross, delta: actualGross - compatibleGross };
-  }).filter(row => row.actual > 0 || row.compatible > 0).sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
-  return {
-    dates,
-    dayRows,
-    modelRows,
-    grossDelta: actual.grand_list - compatible.grand_list,
-    creditsDelta: actual.grand_qty - compatible.grand_qty,
-    mismatchDays: dayRows.filter(row => Math.abs(row.delta) > 0.0001).length,
-  };
-}
-
 function buildDataSets(rows) {
-  const actual = aggregate(rows, 'actual');
-  const compatible = aggregate(rows, 'compatible');
-  return { actual, compatible, compare: buildCompareData(actual, compatible) };
-}
-
-function sumColumn(rows, key) {
-  return rows.reduce((sum, row) => {
-    const value = parseFloat(row[key] || 0);
-    return sum + (isNaN(value) ? 0 : value);
-  }, 0);
-}
-
-function shouldAutoSwitchToCompatible(rows) {
-  if (rows.length === 0) return false;
-  const cols = Object.keys(rows[0]);
-  if (!hasColumn(cols, 'aic_gross_amount') || !hasColumn(cols, 'aic_quantity')) return false;
-  const aicGrossTotal = sumColumn(rows, 'aic_gross_amount');
-  const aicQuantityTotal = sumColumn(rows, 'aic_quantity');
-  const grossTotal = sumColumn(rows, 'gross_amount');
-  const quantityTotal = sumColumn(rows, 'quantity');
-  return aicGrossTotal === 0 && aicQuantityTotal === 0 && (grossTotal > 0 || quantityTotal > 0);
+  return aggregate(rows);
 }
 
 // =====================================================================
 // Validation — returns structured {key, p} issues
 // =====================================================================
-function metricSpec(mode) {
-  if (mode === 'compatible') {
-    return {
-      mode: 'compatible',
-      amountKey: 'gross_amount',
-      amountFallback: null,
-      quantityKey: 'quantity',
-      quantityFallback: null,
-    };
-  }
-  return {
-    mode: 'actual',
-    amountKey: 'aic_gross_amount',
-    amountFallback: 'gross_amount',
-    quantityKey: 'aic_quantity',
-    quantityFallback: 'quantity',
-  };
-}
-
 function hasColumn(cols, key) {
   return cols.includes(key);
 }
 
-function effectiveRaw(row, primaryKey, fallbackKey = null) {
-  const primaryRaw = row[primaryKey];
-  if (primaryRaw !== undefined && primaryRaw !== '') return { field: primaryKey, raw: primaryRaw };
-  if (!fallbackKey) return { field: primaryKey, raw: primaryRaw };
-  return { field: fallbackKey, raw: row[fallbackKey] };
-}
-
-function validate(rows, mode = 'actual', options = {}) {
+function validate(rows) {
   const issues = [];
-  const spec = metricSpec(mode);
-  const CORE_REQUIRED = ['date','username','model'];
+  const CORE_REQUIRED = ['date','username','model','gross_amount'];
   if (rows.length === 0) {
     issues.push({ key: 'noRows', p: {}, level: 'err' });
     return { issues, level: 'err' };
@@ -673,50 +489,30 @@ function validate(rows, mode = 'actual', options = {}) {
   if (missing.length > 0)
     issues.push({ key: 'missingCols', p: { cols: missing.join(', ') }, level: 'err' });
 
-  const missingMode = [];
-  if (!hasColumn(cols, spec.amountKey) && (!spec.amountFallback || !hasColumn(cols, spec.amountFallback))) missingMode.push(spec.amountKey);
-  if (!hasColumn(cols, spec.quantityKey) && (!spec.quantityFallback || !hasColumn(cols, spec.quantityFallback))) missingMode.push(spec.quantityKey);
-  if (missingMode.length > 0)
-    issues.push({ key: 'missingModeCols', p: { mode: spec.mode, cols: missingMode.join(', ') }, level: 'err' });
-
-  if (mode === 'actual') {
-    const missingActual = ['aic_gross_amount','aic_quantity'].filter(c => !hasColumn(cols, c));
-    const hasFallback = hasColumn(cols, 'gross_amount') || hasColumn(cols, 'quantity');
-    if (missingActual.length > 0 && hasFallback)
-      issues.push({ key: 'actualFallback', p: { cols: missingActual.join(', ') }, level: 'warn' });
-  }
-
   const parseErrs = rows.filter(r => {
-    const { raw } = effectiveRaw(r, spec.amountKey, spec.amountFallback);
+    const raw = r['gross_amount'];
     return raw === undefined || raw === '' || isNaN(parseFloat(raw));
   });
   if (parseErrs.length > 0)
-    issues.push({ key: 'parseErrors', p: { n: parseErrs.length, field: spec.amountKey, ex: parseErrs.slice(0,3).map(r=>`${r.date}/${r.username}`).join(', ') }, level: 'warn' });
+    issues.push({ key: 'parseErrors', p: { n: parseErrs.length, field: 'gross_amount', ex: parseErrs.slice(0,3).map(r=>`${r.date}/${r.username}`).join(', ') }, level: 'warn' });
 
   const emptyF = rows.filter(r => !r['username'] || !r['model'] || !r['date']);
   if (emptyF.length > 0)
     issues.push({ key: 'emptyFields', p: { n: emptyF.length }, level: 'warn' });
 
-  const negR = rows.filter(r => metricValue(r, spec.amountKey, spec.amountFallback) < 0);
+  const negR = rows.filter(r => metricValue(r, 'gross_amount') < 0);
   if (negR.length > 0)
-    issues.push({ key: 'negRows', p: { n: negR.length, field: spec.amountKey }, level: 'warn' });
+    issues.push({ key: 'negRows', p: { n: negR.length, field: 'gross_amount' }, level: 'warn' });
 
-  const rowSum = rows.reduce((s, r) => s + metricValue(r, spec.amountKey, spec.amountFallback), 0);
+  const rowSum = rows.reduce((s, r) => s + metricValue(r, 'gross_amount'), 0);
   const aggSum = Object.values(rows.reduce((acc, r) => {
-    const u = r['username'], a = metricValue(r, spec.amountKey, spec.amountFallback);
+    const u = r['username'], a = metricValue(r, 'gross_amount');
     if (u) acc[u] = (acc[u] || 0) + a;
     return acc;
   }, {})).reduce((s, v) => s + v, 0);
   const diff = Math.abs(rowSum - aggSum);
   if (diff > 0.01)
-    issues.push({ key: 'sumMismatch', p: { mode: spec.mode, row: rowSum.toFixed(4), agg: aggSum.toFixed(4), diff: diff.toFixed(4) }, level: 'warn' });
-
-  const qty0 = rows.filter(r => parseFloat(r['quantity']||0)===0 && parseFloat(r['aic_gross_amount']||0)>0);
-  if (mode === 'actual' && qty0.length > 0)
-    issues.push({ key: 'qty0Rows', p: { n: qty0.length, dates: [...new Set(qty0.map(r=>r['date']))].join(', ') }, level: 'info' });
-
-  if (options.autoSwitchedToCompatible)
-    issues.push({ key: 'autoSwitchedCompatible', p: {}, level: 'info' });
+    issues.push({ key: 'sumMismatch', p: { row: rowSum.toFixed(4), agg: aggSum.toFixed(4), diff: diff.toFixed(4) }, level: 'warn' });
 
   const level = issues.some(i=>i.level==='err') ? 'err' : issues.some(i=>i.level==='warn') ? 'warn' : 'ok';
   return { issues, level, rowSum };
@@ -730,13 +526,10 @@ function fmtIssue(issue) {
 // =====================================================================
 // State
 // =====================================================================
-let DATA = null, ALL_DATA = null, RAW_ROWS = null, lastValidation = null, activeTab = 'overview', activeMode = 'actual', currentFilename = '';
+let DATA = null, lastValidation = null, activeTab = 'overview', currentFilename = '';
 const charts = {};
 let sortState = { col: 'total', dir: 'desc' };
 let chartResizeFrame = null;
-let lastDetailTab = 'overview';
-let autoSwitchedToCompatible = false;
-let explicitModeOverride = false;
 
 // =====================================================================
 // File loading
@@ -755,7 +548,6 @@ document.getElementById('fileInput').addEventListener('change', e => {
 });
 
 function loadFile(file) {
-  explicitModeOverride = false;
   const reader = new FileReader();
   reader.onload = e => {
     loadCSVText(e.target.result, file.name);
@@ -765,13 +557,8 @@ function loadFile(file) {
 
 function loadCSVText(text, filename, tab = 'overview') {
   const rows = parseCSV(text);
-  RAW_ROWS = rows;
-  ALL_DATA = buildDataSets(rows);
-  const defaultMode = explicitModeOverride ? activeMode : 'actual';
-  autoSwitchedToCompatible = !explicitModeOverride && shouldAutoSwitchToCompatible(rows);
-  activeMode = autoSwitchedToCompatible ? 'compatible' : defaultMode;
-  DATA = ALL_DATA[activeMode];
-  lastValidation = validate(rows, activeMode, { autoSwitchedToCompatible });
+  DATA = buildDataSets(rows);
+  lastValidation = validate(rows);
   currentFilename = filename;
   sortState = { col: 'total', dir: 'desc' };
   showDashboard(filename, tab);
@@ -781,7 +568,7 @@ function loadCSVText(text, filename, tab = 'overview') {
 // Dashboard rendering
 // =====================================================================
 function showDashboard(filename, tab = 'overview') {
-  const active = ['overview','members','model','daily','compare'].includes(tab) ? tab : 'overview';
+  const active = ['overview','members','model','daily'].includes(tab) ? tab : 'overview';
   dropzone.style.display = 'none';
   dashboard.style.display = 'block';
   document.getElementById('headerMeta').textContent = filename;
@@ -793,7 +580,6 @@ function rerenderDashboard() {
   Object.values(charts).forEach(c => c.destroy());
   Object.keys(charts).forEach(k => delete charts[k]);
   document.getElementById('tableMain').innerHTML = '';
-  document.getElementById('tableCompare').innerHTML = '';
   applyLang();
   buildActiveTab();
 }
@@ -802,17 +588,6 @@ function renderSubtitle() {
   const d = DATA;
   document.getElementById('subtitle').textContent =
     `${d.dates[0]} ${t('separator')} ${d.dates[d.dates.length-1]}  ·  ${d.orgs.join(', ')}  ·  ${d.users.length} ${t('members')}`;
-}
-
-function renderModeControls() {
-  const isCompare = activeTab === 'compare';
-  document.getElementById('modeActualBtn').classList.toggle('active', activeMode === 'actual');
-  document.getElementById('modeCompatibleBtn').classList.toggle('active', activeMode === 'compatible');
-  document.getElementById('compareViewBtn').classList.toggle('active', isCompare);
-  document.getElementById('modeActualBtn').title = t('modeNoteActual');
-  document.getElementById('modeCompatibleBtn').title = t('modeNoteCompatible');
-  document.getElementById('modeSwitch').style.display = isCompare ? 'none' : 'inline-flex';
-  document.getElementById('detailTabs').style.display = isCompare ? 'none' : 'flex';
 }
 
 function renderCostBadges() {
@@ -842,29 +617,8 @@ function renderCostBadges() {
 function renderValidation(v) {
   const el = document.getElementById('validationBanner');
   if (v.level === 'ok') {
-    const infoIssues = v.issues.filter(i => i.level === 'info');
-    const hasHighImpactInfo = infoIssues.some(i => i.key === 'autoSwitchedCompatible');
-    if (!hasHighImpactInfo) {
-      const infoCount = infoIssues.length;
-      const infoStr = infoCount > 0 ? ` — ${infoCount} ${t('vbOkInfo')}` : '';
-      if (infoCount === 0) {
-        el.innerHTML = `<div class="vb-ok">${t('vbOkText')}${infoStr} <span class="vb-detail-ok">· ${t('vbRowTotal')} $${v.rowSum.toFixed(2)}</span></div>`;
-        return;
-      }
-      const iconMap = { info: '·' };
-      const items = infoIssues.map(i => {
-        const { text, detail } = fmtIssue(i);
-        return `<div class="vb-item"><span class="vb-icon">${iconMap[i.level]}</span><div><div class="vb-text">${escapeHTML(text)}</div><div class="vb-detail-msg">${escapeHTML(detail)}</div></div></div>`;
-      }).join('');
-      el.innerHTML = `<div class="vb-ok-wrap">
-        <div class="vb-ok">${t('vbOkText')}${infoStr} <span class="vb-detail-ok">· ${t('vbRowTotal')} $${v.rowSum.toFixed(2)}</span></div>
-        <details class="vb-ok-details">
-          <summary>${t('vbViewDetails')}</summary>
-          <div class="vb-ok-body">${items}</div>
-        </details>
-      </div>`;
-      return;
-    }
+    el.innerHTML = `<div class="vb-ok">${t('vbOkText')} <span class="vb-detail-ok">· ${t('vbRowTotal')} $${v.rowSum.toFixed(2)}</span></div>`;
+    return;
   }
 
   {
@@ -891,7 +645,7 @@ function resetView() {
   dashboard.style.display = 'none';
   dropzone.style.display  = 'flex';
   document.getElementById('fileInput').value = '';
-  DATA = null; ALL_DATA = null; RAW_ROWS = null; lastValidation = null; currentFilename = ''; activeTab = 'overview'; activeMode = 'actual'; autoSwitchedToCompatible = false; explicitModeOverride = false;
+  DATA = null; lastValidation = null; currentFilename = ''; activeTab = 'overview';
 }
 
 function toggleHeaderMenu(event) {
@@ -930,28 +684,10 @@ function switchTab(btn, name) {
 }
 
 function setActiveTab(name) {
-  const active = ['overview','members','model','daily','compare'].includes(name) ? name : 'overview';
-  if (active !== 'compare') lastDetailTab = active;
+  const active = ['overview','members','model','daily'].includes(name) ? name : 'overview';
   activeTab = active;
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === active));
   document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === active));
-  renderModeControls();
-}
-
-function openCompare() {
-  closeHeaderMenu();
-  setActiveTab(activeTab === 'compare' ? lastDetailTab : 'compare');
-  buildActiveTab();
-}
-
-function setMode(mode) {
-  if (!ALL_DATA || activeMode === mode) return;
-  closeHeaderMenu();
-  activeMode = mode;
-  autoSwitchedToCompatible = false;
-  DATA = ALL_DATA[activeMode];
-  lastValidation = validate(RAW_ROWS || [], activeMode, { autoSwitchedToCompatible });
-  rerenderDashboard();
 }
 
 function buildActiveTab() {
@@ -959,7 +695,6 @@ function buildActiveTab() {
   if (activeTab === 'members') { if (!charts.total) buildTotal(); buildTable(); }
   if (activeTab === 'model' && !charts.model) buildModel();
   if (activeTab === 'daily' && !charts.daily) buildDaily();
-  if (activeTab === 'compare') buildCompare();
 }
 
 function scheduleChartResize() {
@@ -1230,96 +965,6 @@ function buildOrg() {
   });
 }
 
-function renderCompareSummary() {
-  const compare = ALL_DATA.compare;
-  document.getElementById('compareSummary').innerHTML = `
-    <div class="cost-bar">
-      <div class="cost-stat">
-        <span class="cost-stat-label">${t('badgeCompareGross')}</span>
-        <span class="cost-stat-value" style="color:${compare.grossDelta >= 0 ? '#60a5fa' : '#ff7b72'}">$${compare.grossDelta.toFixed(2)}</span>
-      </div>
-      <div class="cost-stat">
-        <span class="cost-stat-label">${t('badgeCompareCredits')}</span>
-        <span class="cost-stat-value" style="color:${compare.creditsDelta >= 0 ? '#60a5fa' : '#ff7b72'}">${Math.round(compare.creditsDelta).toLocaleString()}</span>
-      </div>
-      <div class="cost-stat">
-        <span class="cost-stat-label">${t('badgeCompareDays')}</span>
-        <span class="cost-stat-value" style="color:#c9d1d9">${compare.mismatchDays}</span>
-      </div>
-    </div>`;
-}
-
-function buildCompare() {
-  renderCompareSummary();
-
-  const compare = ALL_DATA.compare;
-  const dailyCtx = document.getElementById('chartCompareDaily').getContext('2d');
-  charts.compareDaily = new Chart(dailyCtx, {
-    type: 'bar',
-    data: {
-      labels: compare.dayRows.map(row => row.date.slice(5)),
-      datasets: [{
-        label: 'Gross delta ($)',
-        data: compare.dayRows.map(row => +(row.delta.toFixed(2))),
-        backgroundColor: compare.dayRows.map(row => row.delta >= 0 ? '#60a5fa80' : '#ff7b7280'),
-        borderColor: compare.dayRows.map(row => row.delta >= 0 ? '#60a5fa' : '#ff7b72'),
-        borderWidth: 1,
-        borderRadius: 5,
-        borderSkipped: false,
-      }]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` $${c.raw.toFixed(2)}` } } },
-      scales: { y: { grid: { color: '#21262d' }, ticks: { callback: v => `$${v}` } }, x: { grid: { display: false } } }
-    }
-  });
-
-  const topModels = compare.modelRows.slice(0, 8);
-  const modelCtx = document.getElementById('chartCompareModel').getContext('2d');
-  charts.compareModel = new Chart(modelCtx, {
-    type: 'bar',
-    data: {
-      labels: topModels.map(row => row.model),
-      datasets: [{
-        label: 'Gross delta ($)',
-        data: topModels.map(row => +(row.delta.toFixed(2))),
-        backgroundColor: topModels.map(row => row.delta >= 0 ? '#60a5fa80' : '#ff7b7280'),
-        borderColor: topModels.map(row => row.delta >= 0 ? '#60a5fa' : '#ff7b72'),
-        borderWidth: 1,
-        borderRadius: 5,
-        borderSkipped: false,
-      }]
-    },
-    options: {
-      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` $${c.raw.toFixed(2)}` } } },
-      scales: { x: { grid: { color: '#21262d' }, ticks: { callback: v => `$${v}` } }, y: { grid: { display: false } } }
-    }
-  });
-
-  buildCompareTable();
-}
-
-function buildCompareTable() {
-  const compare = ALL_DATA.compare;
-  const tbl = document.getElementById('tableCompare');
-  tbl.innerHTML = `<tr>
-    <th>${t('colDate')}</th>
-    <th>${t('colActual')}</th>
-    <th>${t('colCompatible')}</th>
-    <th>${t('colDelta')}</th>
-  </tr>`;
-  compare.dayRows.forEach(row => {
-    tbl.innerHTML += `<tr>
-      <td>${row.date}</td>
-      <td class="num">$${row.actual.toFixed(2)}</td>
-      <td class="num">$${row.compatible.toFixed(2)}</td>
-      <td class="num" style="color:${row.delta >= 0 ? '#60a5fa' : '#ff7b72'}">$${row.delta.toFixed(2)}</td>
-    </tr>`;
-  });
-}
-
 // =====================================================================
 // Table (with sort)
 // =====================================================================
@@ -1448,11 +1093,6 @@ async function loadCSVFromQuery() {
   const csvURL = csvURLFromQuery(params.get('csv'));
   if (!csvURL) return;
   const tab = params.get('tab') || 'overview';
-  const mode = params.get('mode');
-  if (mode === 'actual' || mode === 'compatible') {
-    activeMode = mode;
-    explicitModeOverride = true;
-  }
   try {
     const res = await fetch(csvURL, { credentials: 'omit', referrerPolicy: 'no-referrer' });
     if (!res.ok) return;

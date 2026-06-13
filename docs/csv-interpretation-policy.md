@@ -4,6 +4,22 @@ This document summarizes how this viewer interprets a GitHub Copilot AI usage CS
 
 It is intended as a simple reference for readers of reports or dashboards generated from this HTML.
 
+## Note on the `aic_*` preview columns (2026-06-01)
+
+Earlier exports carried preview columns `aic_quantity` and `aic_gross_amount`
+alongside the standard billing columns. Per GitHub's changelog
+([AI usage report updates, 2026-06-11](https://github.blog/changelog/2026-06-11-ai-usage-report-updates/)),
+those preview fields are **deprecated and were retroactively zeroed for AI credit
+usage from 2026-06-01 forward**. The standard columns `quantity` / `gross_amount`
+are the canonical source for AI credit usage going forward; reports from before
+2026-06-01 are unchanged.
+
+Because the `aic_*` columns no longer describe anything distinct, this viewer
+**ignores them entirely** and reports a single basis built from the standard
+billing columns. (Earlier versions exposed an "Actual consumption" / "GitHub UI
+compatible" mode switch and a Compare view to reconcile the two column families;
+those have been removed.)
+
 ## Scope
 
 This viewer is designed for CSV files exported from GitHub billing views related to AI usage.
@@ -15,37 +31,13 @@ The interpretation follows the current usage-based billing format described in p
 
 ## Core idea
 
-The CSV may contain two related measurement families:
+The viewer aggregates usage from the standard billing columns:
 
-1. Standard billing fields such as `quantity` and `gross_amount`
-2. AI credit-specific fields such as `aic_quantity` and `aic_gross_amount`
-
-This viewer treats them as different views of usage, not as interchangeable values.
-
-## Interpretation modes
-
-### Actual consumption
-
-This mode is intended to represent AI credit consumption as directly as possible.
-
-- Primary fields: `aic_quantity`, `aic_gross_amount`
-- Fallback fields: `quantity`, `gross_amount` when the AI credit-specific fields are blank
-
-Use this mode when the goal is to understand actual AI credit consumption, shared pool drawdown, or model consumption in AI credit terms.
-
-### GitHub UI compatible
-
-This mode is intended to stay close to the standard billing-style values that may appear in GitHub usage views.
-
-- Primary fields: `quantity`, `gross_amount`
-
-Use this mode when the goal is to compare this viewer with a GitHub usage graph or other billing-oriented UI that appears to rely on the standard billing columns.
-
-### Compare
-
-This mode is intended for inspection only.
-
-It highlights the difference between the two interpretations above so that readers can see where standard billing fields and AI credit-specific fields diverge.
+- `gross_amount` — gross AI credit cost before discounts (the basis for every
+  gross total, share, and chart in this viewer)
+- `quantity` — billed AI credit quantity
+- `net_amount` / `discount_amount` — used to derive the metered (overage) vs.
+  covered split
 
 ## Field summary
 
@@ -58,58 +50,34 @@ The viewer may use the following columns when they are present:
 | `product` | Product that produced the usage |
 | `sku` | SKU associated with the usage row |
 | `model` | Model associated with the usage row |
-| `quantity` | Standard billed quantity |
-| `gross_amount` | Standard gross amount before discounts |
+| `quantity` | Billed AI credit quantity |
+| `gross_amount` | Gross amount before discounts |
 | `discount_amount` | Discount or included usage coverage |
-| `net_amount` | Billable amount after discounts |
+| `net_amount` | Billable amount after discounts (metered/overage) |
 | `unit_type` | Unit basis for the row |
 | `organization` | Organization associated with the row |
 | `cost_center_name` | Optional cost center label |
 | `total_monthly_quota` | Monthly quota value included in the export |
-| `aic_quantity` | AI credit-specific quantity |
-| `aic_gross_amount` | AI credit-specific gross cost |
 
-## Preferred aggregation rule
-
-When AI credit-specific fields are present, this viewer interprets them as the preferred source for actual AI credit consumption.
-
-This means:
-
-- `aic_quantity` is preferred over `quantity` for AI credit consumption views
-- `aic_gross_amount` is preferred over `gross_amount` for AI credit cost views
-
-The standard billing fields are still useful for compatibility and comparison.
-
-## Why both interpretations may differ
-
-Different GitHub billing exports and dashboards may expose:
-
-- standard billed quantities and gross amounts
-- AI credit-specific quantities and gross amounts
-
-These values can match, but they do not always match.
-
-As a result, a chart built from standard billing columns may differ from a chart built from AI credit-specific columns.
-
-This viewer keeps those interpretations separate so the reader can understand which basis is being used.
+The preview columns `aic_quantity` and `aic_gross_amount`, if present, are ignored.
 
 ## Validation philosophy
 
-The viewer should validate whether the CSV contains the columns needed for the selected interpretation mode.
+The viewer validates whether the CSV contains the columns needed to aggregate
+usage.
 
 In general:
 
-- Missing core identity fields such as `date`, `username`, or `model` are treated as data quality issues
-- Missing AI credit-specific fields reduce confidence in `Actual consumption`
-- Differences between standard billing fields and AI credit-specific fields are not automatically treated as errors
-
-Those differences can be a normal property of the export format.
+- Missing required fields such as `date`, `username`, `model`, or `gross_amount`
+  are treated as data quality issues
+- Unparseable, negative, or empty rows are surfaced as warnings
+- A row-total vs. aggregated-total mismatch is surfaced as a warning
 
 ## Reporting guidance
 
 When using charts or totals from this viewer in a report:
 
-1. State whether the numbers are based on `Actual consumption` or `GitHub UI compatible`
-2. Use `Actual consumption` when discussing AI credit consumption or shared pool usage
-3. Use `GitHub UI compatible` when comparing against GitHub billing UI visuals
-4. Use `Compare` when explaining why the two views differ
+1. State that the numbers are based on the standard billing columns
+   (`gross_amount` / `net_amount`) of the loaded CSV
+2. Remember every view is an estimate of the loaded CSV; actual billed amounts
+   may differ

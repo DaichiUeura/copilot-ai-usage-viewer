@@ -9,8 +9,8 @@ date,username,product,sku,model,quantity,unit_type,applied_cost_per_quantity,gro
 2026-06-02,jordan.park,copilot,copilot_ai_credit,Claude Sonnet 4.6,358,ai-credits,0.01,3.58,3.58,0.00,3900,Example Labs,Research,358,3.58
 2026-06-02,casey.ng,copilot,copilot_ai_credit,GPT-5 mini,72,ai-credits,0.01,0.72,0.72,0.00,1900,Example Labs,Support,72,0.72
 2026-06-02,morgan.lee,copilot,copilot_ai_credit,Gemini 2.5 Pro,148,ai-credits,0.01,1.48,1.48,0.00,1900,Example Labs,Data,148,1.48
-2026-06-03,alex.river,copilot,copilot_ai_credit,Claude Sonnet 4.6,640,ai-credits,0.01,6.40,6.40,0.00,1900,Example Labs,Platform,685,6.85
-2026-06-03,jordan.park,copilot,copilot_ai_credit,GPT-5.5,420,ai-credits,0.01,4.20,4.20,0.00,3900,Example Labs,Research,470,4.70
+2026-06-03,alex.river,copilot,copilot_ai_credit,Claude Sonnet 4.6,640,ai-credits,0.01,6.40,6.40,0.00,1900,Example Labs,Platform,640,6.40
+2026-06-03,jordan.park,copilot,copilot_ai_credit,GPT-5.5,420,ai-credits,0.01,4.20,4.20,0.00,3900,Example Labs,Research,420,4.20
 2026-06-03,morgan.lee,copilot,copilot_ai_credit,GPT-5.4,219,ai-credits,0.01,2.19,2.19,0.00,1900,Example Labs,Data,219,2.19
 2026-06-03,casey.ng,copilot,copilot_ai_credit,Claude Opus 4.8,104,ai-credits,0.01,1.04,1.04,0.00,1900,Example Labs,Support,104,1.04
 2026-06-04,alex.river,copilot,copilot_ai_credit,Claude Sonnet 4.6,380,ai-credits,0.01,3.80,1.50,2.30,1900,Example Labs,Platform,380,3.80
