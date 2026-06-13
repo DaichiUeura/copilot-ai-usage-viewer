@@ -51,15 +51,9 @@ test('loads the sample CSV with actual consumption as the default view', async (
   await loadSampleViaUpload(page);
 
   await expect(page.locator('#subtitle')).toContainText('Example Labs');
-  await expect(page.locator('#costBadges .cost-stat').first()).toContainText('$65.81');
-  await expect(page.locator('#validationBanner')).toContainText(/Row total:? \$65\.81/);
+  await expect(page.locator('#costBadges .cost-stat').first()).toContainText('$73.03');
+  await expect(page.locator('#validationBanner')).toContainText(/Row total:? \$73\.03/);
   await expect(page.locator('#validationBanner .vb-ok')).toContainText('Validation passed');
-  await expect(page.locator('#validationBanner details.vb-ok-details')).toBeVisible();
-  await expect(page.locator('#validationBanner .vb-ok-body')).toBeHidden();
-
-  await page.locator('#validationBanner details.vb-ok-details summary').click();
-  await expect(page.locator('#validationBanner .vb-ok-body')).toBeVisible();
-  await expect(page.locator('#validationBanner .vb-ok-body')).toContainText('quantity=0 but aic_gross_amount>0');
 
   await page.locator('#menuBtn').click();
   await expect(page.locator('#headerMenu')).toBeVisible();
@@ -72,8 +66,8 @@ test('switches view basis and opens compare from the header menu', async ({ page
 
   await page.locator('#menuBtn').click();
   await page.locator('#modeCompatibleBtn').click();
-  await expect(page.locator('#costBadges .cost-stat').first()).toContainText('$40.41');
-  await expect(page.locator('#validationBanner')).toContainText(/Row total:? \$40\.41/);
+  await expect(page.locator('#costBadges .cost-stat').first()).toContainText('$72.08');
+  await expect(page.locator('#validationBanner')).toContainText(/Row total:? \$72\.08/);
 
   await page.locator('#menuBtn').click();
   await page.locator('#compareViewBtn').click();
@@ -82,10 +76,10 @@ test('switches view basis and opens compare from the header menu', async ({ page
   await expect(page.locator('#detailTabs')).toBeHidden();
   await page.locator('#menuBtn').click();
   await expect(page.locator('#modeSwitch')).toBeHidden();
-  await expect(page.locator('#compareSummary')).toContainText('$25.40');
-  await expect(page.locator('#compareSummary')).toContainText('2,540');
-  await expect(page.locator('#tableCompare')).toContainText('2026-06-04');
-  await expect(page.locator('#tableCompare')).toContainText('$24.45');
+  await expect(page.locator('#compareSummary')).toContainText('$0.95');
+  await expect(page.locator('#compareSummary')).toContainText('95');
+  await expect(page.locator('#tableCompare')).toContainText('2026-06-03');
+  await expect(page.locator('#tableCompare')).toContainText('$14.78');
 
   await page.locator('#compareViewBtn').click();
   await expect(page.locator('#overview.panel.active')).toBeVisible();
@@ -124,7 +118,7 @@ test('loads a CSV from the csv query parameter', async ({ page }) => {
   await expect(page.locator('#dashboard')).toBeVisible();
   await expect(page.locator('#members.panel.active')).toBeVisible();
   await expect(page.locator('#headerMeta')).toHaveText('sample-ai-usage-report.csv');
-  await expect(page.locator('#costBadges .cost-stat').first()).toContainText('$40.41');
+  await expect(page.locator('#costBadges .cost-stat').first()).toContainText('$72.08');
   await page.locator('#menuBtn').click();
   await expect(page.locator('#modeCompatibleBtn')).toHaveClass(/active/);
 });

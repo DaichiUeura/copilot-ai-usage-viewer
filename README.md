@@ -33,7 +33,7 @@ The resolved URL must be HTTP(S), and CSV files are limited to 10 MB.
 
 ## Views
 
-- **Overview** — cumulative spend, daily total, model share
+- **Overview** — cumulative spend, daily total, model share; metered billing overlay when applicable
 - **Members** — per-member bar chart and sortable detail table
 - **By Model** — stacked usage by member and model
 - **Daily Trend** — day-by-day usage for top members

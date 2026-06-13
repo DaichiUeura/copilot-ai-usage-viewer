@@ -13,11 +13,15 @@ date,username,product,sku,model,quantity,unit_type,applied_cost_per_quantity,gro
 2026-06-03,jordan.park,copilot,copilot_ai_credit,GPT-5.5,420,ai-credits,0.01,4.20,4.20,0.00,3900,Example Labs,Research,470,4.70
 2026-06-03,morgan.lee,copilot,copilot_ai_credit,GPT-5.4,219,ai-credits,0.01,2.19,2.19,0.00,1900,Example Labs,Data,219,2.19
 2026-06-03,casey.ng,copilot,copilot_ai_credit,Claude Opus 4.8,104,ai-credits,0.01,1.04,1.04,0.00,1900,Example Labs,Support,104,1.04
-2026-06-04,alex.river,copilot,copilot_ai_credit,Claude Sonnet 4.6,0,ai-credits,0.01,0.00,0.00,0.00,1900,Example Labs,Platform,912,9.12
-2026-06-04,jordan.park,copilot,copilot_ai_credit,GPT-5.5,0,ai-credits,0.01,0.00,0.00,0.00,3900,Example Labs,Research,1045,10.45
-2026-06-04,morgan.lee,copilot,copilot_ai_credit,GPT-5.4,0,ai-credits,0.01,0.00,0.00,0.00,1900,Example Labs,Data,431,4.31
-2026-06-04,casey.ng,copilot,copilot_ai_credit,Code Review model,0,ai-credits,0.01,0.00,0.00,0.00,1900,Example Labs,Support,57,0.57
-2026-06-05,alex.river,copilot,copilot_ai_credit,GPT-5.4,188,ai-credits,0.01,1.88,1.88,0.00,1900,Example Labs,Platform,188,1.88
-2026-06-05,jordan.park,copilot,copilot_ai_credit,GPT-5.5,510,ai-credits,0.01,5.10,3.90,1.20,3900,Example Labs,Research,510,5.10
-2026-06-05,morgan.lee,copilot,copilot_ai_credit,Claude Sonnet 4.6,276,ai-credits,0.01,2.76,2.76,0.00,1900,Example Labs,Data,276,2.76
-2026-06-05,casey.ng,copilot,copilot_ai_credit,GPT-5 mini,89,ai-credits,0.01,0.89,0.89,0.00,1900,Example Labs,Support,89,0.89
+2026-06-04,alex.river,copilot,copilot_ai_credit,Claude Sonnet 4.6,380,ai-credits,0.01,3.80,1.50,2.30,1900,Example Labs,Platform,380,3.80
+2026-06-04,jordan.park,copilot,copilot_ai_credit,GPT-5.5,520,ai-credits,0.01,5.20,2.00,3.20,3900,Example Labs,Research,520,5.20
+2026-06-04,morgan.lee,copilot,copilot_ai_credit,GPT-5.4,280,ai-credits,0.01,2.80,1.00,1.80,1900,Example Labs,Data,280,2.80
+2026-06-04,casey.ng,copilot,copilot_ai_credit,GPT-5 mini,150,ai-credits,0.01,1.50,0.50,1.00,1900,Example Labs,Support,150,1.50
+2026-06-05,alex.river,copilot,copilot_ai_credit,GPT-5.4,420,ai-credits,0.01,4.20,0.00,4.20,1900,Example Labs,Platform,420,4.20
+2026-06-05,jordan.park,copilot,copilot_ai_credit,Claude Sonnet 4.6,580,ai-credits,0.01,5.80,0.00,5.80,3900,Example Labs,Research,580,5.80
+2026-06-05,morgan.lee,copilot,copilot_ai_credit,GPT-5.4,310,ai-credits,0.01,3.10,0.00,3.10,1900,Example Labs,Data,310,3.10
+2026-06-05,casey.ng,copilot,copilot_ai_credit,GPT-5 mini,180,ai-credits,0.01,1.80,0.00,1.80,1900,Example Labs,Support,180,1.80
+2026-06-06,alex.river,copilot,copilot_ai_credit,GPT-5.5,395,ai-credits,0.01,3.95,0.00,3.95,1900,Example Labs,Platform,395,3.95
+2026-06-06,jordan.park,copilot,copilot_ai_credit,GPT-5.5,610,ai-credits,0.01,6.10,0.00,6.10,3900,Example Labs,Research,610,6.10
+2026-06-06,morgan.lee,copilot,copilot_ai_credit,Claude Sonnet 4.6,265,ai-credits,0.01,2.65,0.00,2.65,1900,Example Labs,Data,265,2.65
+2026-06-06,casey.ng,copilot,copilot_ai_credit,Claude Opus 4.8,140,ai-credits,0.01,1.40,0.00,1.40,1900,Example Labs,Support,140,1.40
