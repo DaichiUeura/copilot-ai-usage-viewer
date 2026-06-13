@@ -309,6 +309,8 @@ const I18N = {
     tipShare:   'Share of total gross usage among all members in this report.',
     tipQuota:   'AI credits used vs. the monthly quota included in your Copilot plan. Red = quota exceeded.',
     tipModel:   'The model with the highest gross AI credit consumption for this member.',
+    // overview overlays
+    poolExhaustedLabel: 'Pool exhausted',
     // badges
     badgeGross:    'Gross',
     badgeNet:      'Net',
@@ -407,6 +409,8 @@ const I18N = {
     tipShare:   'このレポート内の全メンバー合計に対するグロス使用量のシェア。',
     tipQuota:   'Copilot プランに含まれる月次クォータに対する AI クレジット使用量の比率。赤 = クォータ超過。',
     tipModel:   'このメンバーで最も多く消費した AI クレジットのモデル。',
+    // overview overlays
+    poolExhaustedLabel: 'プール枯渇',
     badgeGross:    'Gross',
     badgeNet:      'Net',
     badgeNetWarn:  'Net',
@@ -539,7 +543,7 @@ function metricValue(row, primaryKey, fallbackKey = null) {
 
 function aggregate(rows, mode = 'actual') {
   const user_total = {}, user_model = {}, user_date = {};
-  const model_total = {}, date_total = {};
+  const model_total = {}, date_total = {}, date_net = {};
   const user_quota = {}, user_net = {};
   let grand_qty = 0;
   const amountKey = mode === 'actual' ? 'aic_gross_amount' : 'gross_amount';
@@ -561,6 +565,7 @@ function aggregate(rows, mode = 'actual') {
     user_date[u][d] = (user_date[u][d] || 0) + amt;
     model_total[m] = (model_total[m] || 0) + amt;
     date_total[d]  = (date_total[d]  || 0) + amt;
+    date_net[d]    = (date_net[d]    || 0) + net;
     if (r['total_monthly_quota']) user_quota[u] = parseInt(r['total_monthly_quota']);
   });
   const users = Object.keys(user_total).sort((a, b) => user_total[b] - user_total[a]);
@@ -572,7 +577,7 @@ function aggregate(rows, mode = 'actual') {
   const grand_disc = grand_list - grand_net;
   return { users, dates, models, orgs,
            user_total, user_model, user_date, user_net, user_quota,
-           model_total, date_total, grand_list, grand_net, grand_disc, grand_qty };
+           model_total, date_total, date_net, grand_list, grand_net, grand_disc, grand_qty };
 }
 
 function buildCompareData(actual, compatible) {
@@ -1060,39 +1065,97 @@ function buildDaily() {
 }
 
 function buildOrg() {
-  // Cumulative gross line
+  const dateLabels = DATA.dates.map(d => d.slice(5));
+  const poolExhaustionDate = DATA.dates.find(d => (DATA.date_net[d] || 0) > 0.001) || null;
+
+  // Inline plugin: vertical dashed line at pool-exhaustion date on time-series charts
+  const exhaustionLinePlugin = {
+    id: 'exhaustionLine',
+    beforeDraw(chart) {
+      if (!poolExhaustionDate) return;
+      const { ctx, chartArea, scales } = chart;
+      if (!scales.x || !chartArea) return;
+      const shortDate = poolExhaustionDate.slice(5);
+      const x = scales.x.getPixelForValue(shortDate);
+      if (x == null) return;
+      ctx.save();
+      ctx.beginPath();
+      ctx.setLineDash([4, 4]);
+      ctx.strokeStyle = '#d29922';
+      ctx.lineWidth = 1.5;
+      ctx.moveTo(x, chartArea.top);
+      ctx.lineTo(x, chartArea.bottom);
+      ctx.stroke();
+      ctx.fillStyle = '#d29922';
+      const label = t('poolExhaustedLabel');
+      ctx.font = '10px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      const halfW = ctx.measureText(label).width / 2;
+      // Center on the line, but clamp so the label never clips at either edge
+      const labelX = Math.max(chartArea.left + halfW, Math.min(x, chartArea.right - halfW));
+      ctx.fillText(label, labelX, chartArea.top - 4); // just above the plot area
+      ctx.restore();
+    }
+  };
+
+  // Cumulative gross + optional cumulative net line
   const cumVals = DATA.dates.reduce((acc, d) => {
     const last = acc.length > 0 ? acc[acc.length-1] : 0;
     acc.push(+(last + (DATA.date_total[d]||0)).toFixed(2));
     return acc;
   }, []);
+  const hasMetered = DATA.grand_net > 0.001;
+  const exhaustionIdx = poolExhaustionDate ? DATA.dates.indexOf(poolExhaustionDate) : -1;
+  const cumNetVals = DATA.dates.reduce((acc, d, i) => {
+    const last = acc.length > 0 && acc[acc.length - 1] !== null ? acc[acc.length - 1] : 0;
+    const val = +(last + (DATA.date_net[d] || 0)).toFixed(2);
+    acc.push(exhaustionIdx >= 0 && i < exhaustionIdx ? null : val);
+    return acc;
+  }, []);
   charts.cumulative = new Chart(document.getElementById('chartCumulative').getContext('2d'), {
     type: 'line',
     data: {
-      labels: DATA.dates.map(d => d.slice(5)),
-      datasets: [{
-        label: 'Cumulative Gross ($)',
-        data: cumVals,
-        borderColor: '#58a6ff',
-        backgroundColor: '#58a6ff15',
-        borderWidth: 2,
-        pointRadius: 5,
-        pointHoverRadius: 7,
-        fill: true,
-        tension: 0.3,
-      }]
+      labels: dateLabels,
+      datasets: [
+        {
+          label: 'Cumulative Gross ($)',
+          data: cumVals,
+          borderColor: '#58a6ff',
+          backgroundColor: '#58a6ff15',
+          borderWidth: 2,
+          pointRadius: 5,
+          pointHoverRadius: 7,
+          fill: true,
+          tension: 0.3,
+        },
+        ...(hasMetered ? [{
+          label: 'Cumulative Net ($)',
+          data: cumNetVals,
+          borderColor: '#d29922',
+          backgroundColor: '#d2992215',
+          borderWidth: 2,
+          borderDash: [4, 4],
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          fill: true,
+          tension: 0.3,
+        }] : []),
+      ]
     },
     options: {
       responsive: true, maintainAspectRatio: false,
+      layout: poolExhaustionDate ? { padding: { top: 18 } } : {},
       plugins: {
-        legend: { display: false },
+        legend: { display: hasMetered, position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
         tooltip: { callbacks: { label: c => ` $${c.raw.toFixed(2)}` } }
       },
       scales: {
         y: { grid: { color: '#21262d' }, ticks: { callback: v=>`$${v}` }, beginAtZero: true },
         x: { grid: { color: '#21262d' } }
       }
-    }
+    },
+    plugins: [exhaustionLinePlugin]
   });
 
   const ms = Object.entries(DATA.model_total).sort((a,b)=>b[1]-a[1]);
@@ -1110,17 +1173,60 @@ function buildOrg() {
     }
   });
 
-  const dL = DATA.dates.map(d=>d.slice(5));
-  const dV = DATA.dates.map(d=>+(DATA.date_total[d]||0).toFixed(2));
+  // Daily total: stacked Covered + Metered bars
+  const dCoveredV = DATA.dates.map(d => +((DATA.date_total[d]||0) - (DATA.date_net[d]||0)).toFixed(2));
+  const dNetV     = DATA.dates.map(d => +((DATA.date_net[d]||0)).toFixed(2));
   charts.dateTotal = new Chart(document.getElementById('chartDateTotal').getContext('2d'), {
     type: 'bar',
-    data: { labels: dL, datasets: [{ label: 'Gross ($)', data: dV,
-      backgroundColor: '#58a6ff80', borderColor: '#58a6ff', borderWidth: 1, borderRadius: 5, borderSkipped: false }] },
+    data: {
+      labels: dateLabels,
+      datasets: [
+        {
+          label: 'Covered ($)',
+          data: dCoveredV,
+          backgroundColor: '#58a6ff80',
+          borderColor: '#58a6ff',
+          borderWidth: 1,
+          borderRadius: 3,
+          borderSkipped: false,
+        },
+        {
+          label: 'Metered ($)',
+          data: dNetV,
+          backgroundColor: '#d2992280',
+          borderColor: '#d29922',
+          borderWidth: 1,
+          borderRadius: 3,
+          borderSkipped: false,
+        },
+      ]
+    },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` $${c.raw.toFixed(2)}` } } },
-      scales: { y: { grid: { color: '#21262d' }, ticks: { callback: v=>`$${v}` } }, x: { grid: { display: false } } }
-    }
+      layout: poolExhaustionDate ? { padding: { top: 18 } } : {},
+      plugins: {
+        legend: {
+          display: true,
+          position: 'bottom',
+          labels: {
+            boxWidth: 12,
+            font: { size: 11 },
+            filter: (item, data) => item.text !== 'Metered ($)' || data.datasets[1].data.some(v => v > 0),
+          }
+        },
+        tooltip: {
+          callbacks: {
+            label: c => c.raw > 0 ? ` ${c.dataset.label}: $${c.raw.toFixed(2)}` : null,
+            footer: items => ` Total: $${items.reduce((s, i) => s + i.raw, 0).toFixed(2)}`,
+          }
+        }
+      },
+      scales: {
+        y: { stacked: true, grid: { color: '#21262d' }, ticks: { callback: v=>`$${v}` } },
+        x: { stacked: true, grid: { display: false } }
+      }
+    },
+    plugins: [exhaustionLinePlugin]
   });
 }
 

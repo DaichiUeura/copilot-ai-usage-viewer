@@ -6,6 +6,7 @@ const appUrl = `file://${path.resolve(__dirname, '..', '..', 'index.html')}`;
 const sampleCsv = path.resolve(__dirname, '..', '..', 'assets', 'sample-ai-usage-report.csv');
 const aicAllZeroCsv = path.resolve(__dirname, 'fixtures', 'aic-all-zero-standard-usage.csv');
 const allZeroCsv = path.resolve(__dirname, 'fixtures', 'all-zero-usage.csv');
+const meteredCsv = path.resolve(__dirname, 'fixtures', 'metered-usage.csv');
 const sampleCsvText = fs.readFileSync(sampleCsv, 'utf8');
 const aicAllZeroCsvText = fs.readFileSync(aicAllZeroCsv, 'utf8');
 const allZeroCsvText = fs.readFileSync(allZeroCsv, 'utf8');
@@ -180,4 +181,70 @@ test('keeps actual mode for all-zero files with no standard usage', async ({ pag
   await expect(page.locator('#validationBanner')).toContainText(/Row total:? \$0\.00/);
   await page.locator('#menuBtn').click();
   await expect(page.locator('#modeActualBtn')).toHaveClass(/active/);
+});
+
+// Helper to get a chart stub's config by canvas element id
+async function getChartConfig(page, canvasId) {
+  return page.evaluate(id => {
+    const stub = window.__chartStubs.find(s => s.ctx && s.ctx.canvas && s.ctx.canvas.id === id);
+    return stub ? stub.config : null;
+  }, canvasId);
+}
+
+test('overview cumulative chart adds net line and exhaustion plugin when metered usage exists', async ({ page }) => {
+  await loadCsvViaUpload(page, meteredCsv);
+
+  // Net badge shows non-zero amber value (total net = 0.70+1.60+1.80+1.20 = 5.30)
+  const netStat = page.locator('#costBadges .cost-stat').nth(1);
+  await expect(netStat).toContainText('$5.30');
+
+  const cumConfig = await getChartConfig(page, 'chartCumulative');
+  // Two datasets: Cumulative Gross + Cumulative Net
+  expect(cumConfig.data.datasets).toHaveLength(2);
+  expect(cumConfig.data.datasets[0].label).toBe('Cumulative Gross ($)');
+  expect(cumConfig.data.datasets[1].label).toBe('Cumulative Net ($)');
+  // Exhaustion line plugin attached
+  expect(cumConfig.plugins.some(p => p.id === 'exhaustionLine')).toBe(true);
+  // Net line starts at pool exhaustion date (06-03); prior dates are null
+  const cumLabels = cumConfig.data.labels;
+  const netData = cumConfig.data.datasets[1].data;
+  expect(netData[cumLabels.indexOf('06-01')]).toBeNull();
+  expect(netData[cumLabels.indexOf('06-02')]).toBeNull();
+  expect(netData[cumLabels.indexOf('06-03')]).not.toBeNull();
+});
+
+test('overview daily-total chart is stacked covered/metered bars', async ({ page }) => {
+  await loadCsvViaUpload(page, meteredCsv);
+
+  const dtConfig = await getChartConfig(page, 'chartDateTotal');
+  // Two datasets: Covered + Metered
+  expect(dtConfig.data.datasets).toHaveLength(2);
+  expect(dtConfig.data.datasets[0].label).toBe('Covered ($)');
+  expect(dtConfig.data.datasets[1].label).toBe('Metered ($)');
+  // Stacked axes
+  expect(dtConfig.options.scales.y.stacked).toBe(true);
+  expect(dtConfig.options.scales.x.stacked).toBe(true);
+  // Exhaustion line plugin attached
+  expect(dtConfig.plugins.some(p => p.id === 'exhaustionLine')).toBe(true);
+
+  // Covered values: gross - net per day
+  // day3: 1.50+2.00 - (0.70+1.60) = 3.50-2.30=1.20, day4: 3.00-3.00=0.00
+  const labels = dtConfig.data.labels;
+  const coveredData = dtConfig.data.datasets[0].data;
+  const meteredData = dtConfig.data.datasets[1].data;
+  const idx3 = labels.indexOf('06-03');
+  const idx4 = labels.indexOf('06-04');
+  expect(coveredData[idx3]).toBeCloseTo(1.20, 2);
+  expect(meteredData[idx3]).toBeCloseTo(2.30, 2);
+  expect(coveredData[idx4]).toBeCloseTo(0.00, 2);
+  expect(meteredData[idx4]).toBeCloseTo(3.00, 2);
+});
+
+test('overview cumulative chart has single dataset when all usage is pool-covered', async ({ page }) => {
+  // aic-all-zero auto-switches to compatible mode; net_amount = 0 throughout
+  await loadCsvViaUpload(page, aicAllZeroCsv);
+
+  const cumConfig = await getChartConfig(page, 'chartCumulative');
+  expect(cumConfig.data.datasets).toHaveLength(1);
+  expect(cumConfig.data.datasets[0].label).toBe('Cumulative Gross ($)');
 });

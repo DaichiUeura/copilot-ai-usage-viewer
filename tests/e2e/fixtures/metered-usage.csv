@@ -1,0 +1,9 @@
+date,username,product,sku,model,quantity,unit_type,applied_cost_per_quantity,gross_amount,discount_amount,net_amount,total_monthly_quota,organization,cost_center_name,aic_quantity,aic_gross_amount
+2026-06-01,alice,copilot,copilot_ai_credit,GPT-5.4,100,ai-credits,0.01,1.00,1.00,0.00,200,Test Org,Eng,100,1.00
+2026-06-01,bob,copilot,copilot_ai_credit,Claude Sonnet 4.6,80,ai-credits,0.01,0.80,0.80,0.00,200,Test Org,Eng,80,0.80
+2026-06-02,alice,copilot,copilot_ai_credit,GPT-5.4,120,ai-credits,0.01,1.20,1.20,0.00,200,Test Org,Eng,120,1.20
+2026-06-02,bob,copilot,copilot_ai_credit,Claude Sonnet 4.6,100,ai-credits,0.01,1.00,1.00,0.00,200,Test Org,Eng,100,1.00
+2026-06-03,alice,copilot,copilot_ai_credit,GPT-5.4,150,ai-credits,0.01,1.50,0.80,0.70,200,Test Org,Eng,150,1.50
+2026-06-03,bob,copilot,copilot_ai_credit,Claude Opus 4.8,200,ai-credits,0.01,2.00,0.40,1.60,200,Test Org,Eng,200,2.00
+2026-06-04,alice,copilot,copilot_ai_credit,GPT-5.4,180,ai-credits,0.01,1.80,0.00,1.80,200,Test Org,Eng,180,1.80
+2026-06-04,bob,copilot,copilot_ai_credit,Claude Sonnet 4.6,120,ai-credits,0.01,1.20,0.00,1.20,200,Test Org,Eng,120,1.20
