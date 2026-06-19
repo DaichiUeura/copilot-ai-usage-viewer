@@ -1,15 +1,8 @@
 # Production deploy template — daily build of the org-level AI credit usage Overview to GitHub Pages.
 #
 # This is a TEMPLATE; it lives in automation/ so it does not run here. Copy it to
-# .github/workflows/update-overview.yml in your own private (Enterprise) repo, then:
-#   - Settings -> Secrets and variables -> Actions:
-#       secret   AI_USAGE_PAT       = fine-grained PAT (Organization Administration: read)
-#       variable ORG (optional)     = target org login; defaults to this repo's owner
-#   - Settings -> Pages -> Source = "GitHub Actions"
-#   - (optional) set Pages visibility to Private to restrict to members with repo read
-#
-# The deployed share URL is:  <pages-url>/index.html?csv=./data/ai-credit-usage.csv
-# (a single-user org-level CSV makes the viewer show the Overview only).
+# .github/workflows/update-overview.yml in your own private repo and configure the secret,
+# variable, and Pages source — see automation/README.md ("Deploying with the workflow").
 name: Update AI credit usage Overview
 
 on:

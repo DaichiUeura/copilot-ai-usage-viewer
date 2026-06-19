@@ -69,6 +69,29 @@ widely. Two ways to get it in front of people:
    always-current Overview. Keep the data repo private — `workflows/update-overview.yml` is
    a ready-to-copy daily template for exactly this.
 
+## Deploying with the workflow (GitHub Pages)
+
+`workflows/update-overview.yml` builds the CSV and deploys the viewer to GitHub Pages on a
+daily schedule. To use it, create a **private** repository — putting it in the target org
+lets `ORG` default to the repo owner — containing:
+
+- `index.html` (the viewer)
+- `automation/scripts/fetch.mjs` and `automation/scripts/transform.mjs`
+- `.github/workflows/update-overview.yml` (copied from this template)
+
+Then:
+
+1. **Secret** — Settings → Secrets and variables → Actions → `AI_USAGE_PAT` = a fine-grained
+   PAT with Organization Administration: read.
+2. **Variable** (optional) — `ORG` = the org login. Skip it when the repo lives in the target
+   org; set it only to target a different org.
+3. **Pages** — Settings → Pages → Source = "GitHub Actions". Set visibility to Private to
+   restrict access to members with repo read.
+4. **Default branch** — Actions only runs a workflow from the repository's default branch, so
+   push these files to it (e.g. `main`).
+5. Trigger it from the Actions tab (or wait for the schedule), then share
+   `<pages-url>/index.html?csv=./data/ai-credit-usage.csv`.
+
 ## Privacy
 
 Never commit real exports or tokens (`out/` and `.env` are gitignored). The token lives
