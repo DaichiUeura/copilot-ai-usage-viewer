@@ -2,6 +2,8 @@
   "name": "copilot-ai-usage-viewer",
   "private": true,
   "scripts": {
+    "test": "npm run test:unit && npm run test:e2e",
+    "test:unit": "node --test 'automation/tests/**/*.test.mjs'",
     "test:e2e": "playwright test --config tests/e2e/playwright.config.js"
   },
   "devDependencies": {

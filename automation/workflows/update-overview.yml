@@ -1,0 +1,62 @@
+# Production deploy template — daily build of the org-level AI credit usage Overview to GitHub Pages.
+#
+# This is a TEMPLATE; it lives in automation/ so it does not run here. Copy it to
+# .github/workflows/update-overview.yml in your own private (Enterprise) repo, then:
+#   - Settings -> Secrets and variables -> Actions:
+#       secret   AI_USAGE_PAT       = fine-grained PAT (Organization Administration: read)
+#       variable ORG (optional)     = target org login; defaults to this repo's owner
+#   - Settings -> Pages -> Source = "GitHub Actions"
+#   - (optional) set Pages visibility to Private to restrict to members with repo read
+#
+# The deployed share URL is:  <pages-url>/index.html?csv=./data/ai-credit-usage.csv
+# (a single-user org-level CSV makes the viewer show the Overview only).
+name: Update AI credit usage Overview
+
+on:
+  schedule:
+    - cron: '0 6 * * *' # daily ~06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Fetch usage (raw JSON)
+        env:
+          AI_USAGE_PAT: ${{ secrets.AI_USAGE_PAT }}
+          ORG: ${{ vars.ORG || github.repository_owner }}
+          RAW_DIR: ./out/raw
+        run: node automation/scripts/fetch.mjs
+
+      - name: Build CSV into the site directory
+        env:
+          RAW_DIR: ./out/raw
+          OUT_CSV: ./site/data/ai-credit-usage.csv
+        run: node automation/scripts/transform.mjs
+
+      - name: Assemble site (viewer + CSV only)
+        run: cp index.html ./site/index.html
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./site
+
+      - id: deploy
+        uses: actions/deploy-pages@v4

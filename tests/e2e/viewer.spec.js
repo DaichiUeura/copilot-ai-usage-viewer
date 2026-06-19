@@ -7,6 +7,7 @@ const sampleCsv = path.resolve(__dirname, '..', '..', 'assets', 'sample-ai-usage
 const standardUsageCsv = path.resolve(__dirname, 'fixtures', 'aic-all-zero-standard-usage.csv');
 const allZeroCsv = path.resolve(__dirname, 'fixtures', 'all-zero-usage.csv');
 const meteredCsv = path.resolve(__dirname, 'fixtures', 'metered-usage.csv');
+const orgTotalCsv = path.resolve(__dirname, 'fixtures', 'org-total.csv');
 const sampleCsvText = fs.readFileSync(sampleCsv, 'utf8');
 const allZeroCsvText = fs.readFileSync(allZeroCsv, 'utf8');
 
@@ -181,4 +182,45 @@ test('overview cumulative chart has single dataset when all usage is pool-covere
   const cumConfig = await getChartConfig(page, 'chartCumulative');
   expect(cumConfig.data.datasets).toHaveLength(1);
   expect(cumConfig.data.datasets[0].label).toBe('Cumulative Gross ($)');
+});
+
+// Org-level mode: a CSV with a single distinct username (no per-member breakdown)
+// is shown as Overview-only. Uses a static org-total fixture so this stays a pure
+// viewer test — the transform that produces such CSVs is covered in automation/test.
+test('org-level CSV (single user) hides per-member tabs and shows an info banner', async ({ page }) => {
+  await loadCsvViaUpload(page, orgTotalCsv);
+
+  await expect(page.locator('#dashboard')).toHaveClass(/org-level/);
+  await expect(page.locator('#detailTabs')).toBeHidden();
+  await expect(page.locator('#validationBanner')).toContainText('per-member views hidden');
+
+  // Subtitle shows the org but not a member count.
+  await expect(page.locator('#subtitle')).toContainText('Example Org');
+  await expect(page.locator('#subtitle')).not.toContainText('members');
+});
+
+test('org-level Overview still builds cumulative / model-share charts', async ({ page }) => {
+  await loadCsvViaUpload(page, orgTotalCsv);
+
+  // Metered begins on 05-03, so cumulative has gross + net and the exhaustion plugin.
+  const cum = await getChartConfig(page, 'chartCumulative');
+  expect(cum.data.datasets).toHaveLength(2);
+  expect(cum.plugins.some(p => p.id === 'exhaustionLine')).toBe(true);
+  const labels = cum.data.labels;
+  const net = cum.data.datasets[1].data;
+  expect(net[labels.indexOf('05-01')]).toBeNull();
+  expect(net[labels.indexOf('05-03')]).not.toBeNull();
+
+  // Model share covers both models from the fixture.
+  const share = await getChartConfig(page, 'chartModelShare');
+  expect(share.data.labels).toContain('Model A');
+  expect(share.data.labels).toContain('Model B');
+});
+
+test('multi-user CSV is NOT treated as org-level (regression)', async ({ page }) => {
+  await loadCsvViaUpload(page, meteredCsv);
+
+  await expect(page.locator('#dashboard')).not.toHaveClass(/org-level/);
+  await expect(page.locator('#detailTabs')).toBeVisible();
+  await expect(page.locator('#validationBanner')).not.toContainText('per-member views hidden');
 });

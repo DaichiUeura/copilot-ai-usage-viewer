@@ -1,0 +1,32 @@
+{
+  "timePeriod": { "year": 2026, "month": 5, "day": 3 },
+  "organization": "Example Org",
+  "usageItems": [
+    {
+      "product": "Copilot",
+      "sku": "Copilot AI Credits",
+      "model": "Model A",
+      "unitType": "ai-credits",
+      "pricePerUnit": 0.01,
+      "grossQuantity": 200,
+      "grossAmount": 2.0,
+      "discountQuantity": 80,
+      "discountAmount": 0.8,
+      "netQuantity": 120,
+      "netAmount": 1.2
+    },
+    {
+      "product": "Copilot",
+      "sku": "Copilot AI Credits",
+      "model": "Model B",
+      "unitType": "ai-credits",
+      "pricePerUnit": 0.01,
+      "grossQuantity": 100,
+      "grossAmount": 1.0,
+      "discountQuantity": 70,
+      "discountAmount": 0.7,
+      "netQuantity": 30,
+      "netAmount": 0.3
+    }
+  ]
+}

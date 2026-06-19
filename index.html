@@ -72,6 +72,7 @@
 
   /* Tabs */
   .tabs { display: flex; gap: 4px; margin-bottom: 20px; flex-wrap: wrap; }
+  #dashboard.org-level #detailTabs { display: none; }
   .tab { padding: 7px 16px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; border: 1px solid transparent; background: transparent; color: #8b949e; transition: all 0.15s; }
   .tab.active { background: #21262d; border-color: #30363d; color: #f0f6fc; }
   .tab:hover:not(.active) { color: #c9d1d9; }
@@ -278,6 +279,8 @@ const I18N = {
                      d: ()    => 'May indicate refunds or adjustments. Verify totals.' },
       sumMismatch: { t: p     => `SUM mismatch: row total $${p.row} ≠ aggregated $${p.agg} (diff $${p.diff})`,
                      d: ()    => 'Rows with empty username may be excluded.' },
+      orgLevelOnly:{ t: ()    => 'Single user in this data — per-member views hidden',
+                     d: ()    => 'This CSV contains only one user, so per-member views (Members, By Model, Daily Trend) are not shown. The Overview covers all usage in the file.' },
     },
   },
   ja: {
@@ -350,6 +353,8 @@ const I18N = {
                      d: ()    => '返金・調整が含まれています。合計が意図通りか確認してください。' },
       sumMismatch: { t: p     => `SUM 不一致: 行合計 $${p.row} ≠ 集計合計 $${p.agg}（差: $${p.diff}）`,
                      d: ()    => 'ユーザー名が空の行が除外されている可能性があります。' },
+      orgLevelOnly:{ t: ()    => 'データのユーザーが1件 — メンバー別ビューは非表示',
+                     d: ()    => 'この CSV はユーザーが1件のみのため、メンバー別ビュー（Members / By Model / Daily Trend）を表示しません。Overview がファイル全体の利用を表します。' },
     },
   },
 };
@@ -514,7 +519,11 @@ function validate(rows) {
   if (diff > 0.01)
     issues.push({ key: 'sumMismatch', p: { row: rowSum.toFixed(4), agg: aggSum.toFixed(4), diff: diff.toFixed(4) }, level: 'warn' });
 
-  const level = issues.some(i=>i.level==='err') ? 'err' : issues.some(i=>i.level==='warn') ? 'warn' : 'ok';
+  const distinctUsers = new Set(rows.map(r => r['username'])).size;
+  if (distinctUsers <= 1)
+    issues.push({ key: 'orgLevelOnly', p: {}, level: 'info' });
+
+  const level = issues.some(i=>i.level==='err') ? 'err' : issues.some(i=>i.level==='warn') ? 'warn' : issues.some(i=>i.level==='info') ? 'info' : 'ok';
   return { issues, level, rowSum };
 }
 
@@ -580,14 +589,16 @@ function rerenderDashboard() {
   Object.values(charts).forEach(c => c.destroy());
   Object.keys(charts).forEach(k => delete charts[k]);
   document.getElementById('tableMain').innerHTML = '';
+  dashboard.classList.toggle('org-level', !!DATA && DATA.users.length <= 1);
   applyLang();
   buildActiveTab();
 }
 
 function renderSubtitle() {
   const d = DATA;
+  const base = `${d.dates[0]} ${t('separator')} ${d.dates[d.dates.length-1]}  ·  ${d.orgs.join(', ')}`;
   document.getElementById('subtitle').textContent =
-    `${d.dates[0]} ${t('separator')} ${d.dates[d.dates.length-1]}  ·  ${d.orgs.join(', ')}  ·  ${d.users.length} ${t('members')}`;
+    d.users.length <= 1 ? base : `${base}  ·  ${d.users.length} ${t('members')}`;
 }
 
 function renderCostBadges() {
@@ -684,7 +695,8 @@ function switchTab(btn, name) {
 }
 
 function setActiveTab(name) {
-  const active = ['overview','members','model','daily'].includes(name) ? name : 'overview';
+  let active = ['overview','members','model','daily'].includes(name) ? name : 'overview';
+  if (DATA && DATA.users.length <= 1) active = 'overview'; // org-level: only Overview is meaningful
   activeTab = active;
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === active));
   document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === active));
@@ -1093,7 +1105,9 @@ async function loadCSVFromQuery() {
   if (!csvURL) return;
   const tab = params.get('tab') || 'overview';
   try {
-    const res = await fetch(csvURL, { credentials: 'omit', referrerPolicy: 'no-referrer' });
+    // same-origin sends the session cookie (needed for access-controlled hosting like
+    // private GitHub Pages); cross-origin requests still send no credentials.
+    const res = await fetch(csvURL, { credentials: 'same-origin', referrerPolicy: 'no-referrer' });
     if (!res.ok) return;
     const length = Number(res.headers.get('content-length') || 0);
     if (length > REMOTE_CSV_MAX_BYTES) return;

@@ -1,3 +1,6 @@
 node_modules/
 playwright-report/
 test-results/
+
+# Real usage exports — never commit
+AIUsageReport_*.csv

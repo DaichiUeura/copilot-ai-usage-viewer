@@ -1,0 +1,7 @@
+"date","username","product","sku","model","quantity","unit_type","applied_cost_per_quantity","gross_amount","discount_amount","net_amount","total_monthly_quota","organization","repository","cost_center_name"
+"2026-05-01","(org total)","Copilot","Copilot AI Credits","Model A","200","ai-credits","0.01","2","2","0","","Example Org","",""
+"2026-05-01","(org total)","Copilot","Copilot AI Credits","Model B","100","ai-credits","0.01","1","1","0","","Example Org","",""
+"2026-05-02","(org total)","Copilot","Copilot AI Credits","Model A","150","ai-credits","0.01","1.5","1.5","0","","Example Org","",""
+"2026-05-02","(org total)","Copilot","Copilot AI Credits","Model B","50","ai-credits","0.01","0.5","0.5","0","","Example Org","",""
+"2026-05-03","(org total)","Copilot","Copilot AI Credits","Model A","200","ai-credits","0.01","2","0.8","1.2","","Example Org","",""
+"2026-05-03","(org total)","Copilot","Copilot AI Credits","Model B","100","ai-credits","0.01","1","0.7","0.3","","Example Org","",""

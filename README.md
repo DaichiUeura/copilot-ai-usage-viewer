@@ -38,6 +38,9 @@ The resolved URL must be HTTP(S), and CSV files are limited to 10 MB.
 - **By Model** — stacked usage by member and model
 - **Daily Trend** — day-by-day usage for top members
 
+When a CSV has no per-member breakdown (a single org-level entity), the viewer
+shows the Overview only and hides the per-member tabs, noting why.
+
 ## How usage is interpreted
 
 The viewer aggregates usage from the standard billing columns (`gross_amount` /
@@ -49,13 +52,23 @@ For the CSV interpretation policy used by this viewer, see [docs/csv-interpretat
 
 Supports EN / 日本語. Validates the CSV format on load.
 
+## Automation (optional)
+
+GitHub only shows organization-wide AI credit usage to billing admins. To share it with
+people who can't see it in the GitHub UI, the [automation/](automation/) folder has two
+small Node scripts that pull org totals from GitHub's
+[AI credit usage report API](https://docs.github.com/en/rest/billing/usage) and write a
+CSV this viewer can open. Run them on demand or on a schedule (e.g. GitHub Actions), then
+host the CSV for your team.
+
 ## Testing
 
-This repo includes minimal Playwright smoke tests that open `index.html` directly and load the bundled sample CSV.
+Two suites: viewer e2e (Playwright drives `index.html` and loads CSV fixtures) and
+automation unit tests (`node --test`, covering the companion scripts). `npm test` runs both.
 
 ```bash
 npm install
 npx playwright install-deps chromium
 npx playwright install chromium
-npm run test:e2e
+npm test          # or: npm run test:e2e  /  npm run test:unit
 ```

@@ -1,0 +1,3 @@
+# Never commit real usage data or secrets produced by local runs
+out/
+.env
