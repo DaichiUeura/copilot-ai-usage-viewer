@@ -787,6 +787,15 @@ function buildModel() {
   });
 }
 
+// Compact M/D tick label for the shared date axis (no leading zeros), so the
+// month stays visible on every tick as the date range grows.
+function dateAxisTick(value, index) {
+  const d = DATA.dates[index];
+  if (!d) return value;
+  const [, m, day] = d.split('-');
+  return `${+m}/${+day}`;
+}
+
 function buildDaily() {
   const ctx = document.getElementById('chartDaily').getContext('2d');
   const top8 = DATA.users.slice(0,8);
@@ -806,7 +815,7 @@ function buildDaily() {
         legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
         tooltip: { callbacks: { label: c => ` ${c.dataset.label}: $${c.raw.toFixed(2)}` } }
       },
-      scales: { y: { grid: { color: '#21262d' }, ticks: { callback: v=>`$${v}` } }, x: { grid: { color: '#21262d' } } }
+      scales: { y: { grid: { color: '#21262d' }, ticks: { callback: v=>`$${v}` } }, x: { grid: { color: '#21262d' }, ticks: { maxRotation: 0, autoSkip: true, autoSkipPadding: 8, callback: dateAxisTick } } }
     }
   });
 }
@@ -898,7 +907,7 @@ function buildOrg() {
       },
       scales: {
         y: { grid: { color: '#21262d' }, ticks: { callback: v=>`$${v}` }, beginAtZero: true },
-        x: { grid: { color: '#21262d' } }
+        x: { grid: { color: '#21262d' }, ticks: { maxRotation: 0, autoSkip: true, autoSkipPadding: 8, callback: dateAxisTick } }
       }
     },
     plugins: [exhaustionLinePlugin]
@@ -969,7 +978,7 @@ function buildOrg() {
       },
       scales: {
         y: { stacked: true, grid: { color: '#21262d' }, ticks: { callback: v=>`$${v}` } },
-        x: { stacked: true, grid: { display: false } }
+        x: { stacked: true, grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, autoSkipPadding: 8, callback: dateAxisTick } }
       }
     },
     plugins: [exhaustionLinePlugin]
