@@ -45,7 +45,7 @@ The viewer may use the following columns when they are present:
 
 | Column | Meaning in this viewer |
 | --- | --- |
-| `date` | Usage date |
+| `date` | Usage date (a UTC calendar day) |
 | `username` | User associated with the usage |
 | `product` | Product that produced the usage |
 | `sku` | SKU associated with the usage row |

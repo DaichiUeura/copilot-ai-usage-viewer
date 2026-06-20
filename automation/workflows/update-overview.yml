@@ -7,7 +7,7 @@ name: Update AI credit usage Overview
 
 on:
   schedule:
-    - cron: '0 6 * * *' # daily ~06:00 UTC
+    - cron: '30 0 * * *' # daily 00:30 UTC, shortly after the UTC day rolls over
   workflow_dispatch:
 
 permissions:

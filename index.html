@@ -596,7 +596,7 @@ function rerenderDashboard() {
 
 function renderSubtitle() {
   const d = DATA;
-  const base = `${d.dates[0]} ${t('separator')} ${d.dates[d.dates.length-1]}  ·  ${d.orgs.join(', ')}`;
+  const base = `${d.dates[0]} ${t('separator')} ${d.dates[d.dates.length-1]} (UTC)  ·  ${d.orgs.join(', ')}`;
   document.getElementById('subtitle').textContent =
     d.users.length <= 1 ? base : `${base}  ·  ${d.users.length} ${t('members')}`;
 }
