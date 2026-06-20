@@ -28,7 +28,10 @@ test.beforeEach(async ({ page }) => {
           this.resizeCount += 1;
         }
 
-        destroy() {}
+        destroy() {
+          const i = window.__chartStubs.indexOf(this);
+          if (i >= 0) window.__chartStubs.splice(i, 1);
+        }
       }
 
       ChartStub.defaults = { color: '', borderColor: '' };
@@ -171,6 +174,22 @@ test('overview daily-total chart is stacked covered/metered bars', async ({ page
   expect(meteredData[idx3]).toBeCloseTo(2.30, 2);
   expect(coveredData[idx4]).toBeCloseTo(0.00, 2);
   expect(meteredData[idx4]).toBeCloseTo(3.00, 2);
+});
+
+test('language toggle rebuilds charts so localized series labels follow the language', async ({ page }) => {
+  await loadCsvViaUpload(page, meteredCsv);
+
+  const cumEn = await getChartConfig(page, 'chartCumulative');
+  expect(cumEn.data.datasets[1].label).toBe('Cumulative Net ($)');
+
+  // Toggle to Japanese: descriptive wrappers localize, billing metrics stay English
+  await page.locator('#menuBtn').click();
+  await page.locator('#langToggle').click();
+
+  const cumJa = await getChartConfig(page, 'chartCumulative');
+  expect(cumJa.data.datasets[1].label).toBe('累積 Net ($)'); // "Cumulative" localized
+  const dtJa = await getChartConfig(page, 'chartDateTotal');
+  expect(dtJa.data.datasets[1].label).toBe('Metered ($)'); // billing metric stays English
 });
 
 test('overview cumulative chart has single dataset when all usage is pool-covered', async ({ page }) => {

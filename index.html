@@ -203,6 +203,11 @@
 // =====================================================================
 // i18n
 // =====================================================================
+// Localize surrounding prose, but keep GitHub Copilot's own terminology in the
+// vendor's wording — billing metrics (Gross, Net, Covered, Metered), product
+// terms (included usage, AI credit pool), and product names — in English or an
+// established katakana loanword, rather than inventing a Japanese translation.
+// This is the UI-label form of the "do not invent terminology" rule in CLAUDE.md.
 const I18N = {
   en: {
     pageTitle:   '🤖 GitHub Copilot AI Usage',
@@ -232,6 +237,12 @@ const I18N = {
     ctModelShare:  'Model Share',
     ctDateTotal:   'Daily Total',
     ctTable:       'Member Detail',
+    dsGross:       'Gross ($)',
+    dsCumGross:    'Cumulative Gross ($)',
+    dsCumNet:      'Cumulative Net ($)',
+    dsCovered:     'Covered ($)',
+    dsMetered:     'Metered ($)',
+    lblTotal:      'Total',
     // table headers + tooltips
     colRank:    '#',
     colDate:    'Date',
@@ -309,6 +320,12 @@ const I18N = {
     ctModelShare:  'モデルシェア',
     ctDateTotal:   '日別合計',
     ctTable:       'メンバー詳細',
+    dsGross:       'Gross ($)',
+    dsCumGross:    '累積 Gross ($)',
+    dsCumNet:      '累積 Net ($)',
+    dsCovered:     'Covered ($)',
+    dsMetered:     'Metered ($)',
+    lblTotal:      '合計',
     colRank:    '#',
     colDate:    '日付',
     colUser:    'ユーザー',
@@ -319,7 +336,7 @@ const I18N = {
     colModel:   '主なモデル',
     tipGross:   'AI クレジットの定価合計（$0.01/credit）。割引適用前の Gross 金額。',
     tipNet:     '割引後の実請求額。$0.00 = AI credit pool の included usage でカバー済み。',
-    tipShare:   'このレポート内の全メンバー合計に対するグロス使用量のシェア。',
+    tipShare:   'このレポート内の全メンバー合計に対する Gross 使用量のシェア。',
     tipQuota:   'Copilot プランに含まれる月次クォータに対する AI クレジット使用量の比率。赤 = クォータ超過。',
     tipModel:   'このメンバーで最も多く消費した AI クレジットのモデル。',
     // overview overlays
@@ -331,7 +348,7 @@ const I18N = {
     tipBadgeGross: '全メンバーの GitHub AI クレジット使用量の定価合計（$0.01/credit）',
     tipBadgeNet0:  '実請求額。$0.00 = すべて included AI credits（AI credit pool）でカバー済み',
     tipBadgeNetX:  '実請求額。included AI credits を超えた従量課金（metered usage）を含む',
-    tipBadgeCover: 'グロス使用量のうちプランの included AI credits でカバーされた割合',
+    tipBadgeCover: 'Gross 使用量のうちプランの included AI credits でカバーされた割合',
     coveredLabel:  'Included usage でカバー済み',
     meteredLabel:  '従量課金（Metered usage）あり',
     vbOkLabel:     '',
@@ -354,7 +371,7 @@ const I18N = {
       sumMismatch: { t: p     => `SUM 不一致: 行合計 $${p.row} ≠ 集計合計 $${p.agg}（差: $${p.diff}）`,
                      d: ()    => 'ユーザー名が空の行が除外されている可能性があります。' },
       orgLevelOnly:{ t: ()    => 'データのユーザーが1件 — メンバー別ビューは非表示',
-                     d: ()    => 'この CSV はユーザーが1件のみのため、メンバー別ビュー（Members / By Model / Daily Trend）を表示しません。Overview がファイル全体の利用を表します。' },
+                     d: ()    => 'この CSV はユーザーが1件のみのため、メンバー別ビュー（メンバー別 / モデル別 / 日別トレンド）を表示しません。概要がファイル全体の利用を表します。' },
     },
   },
 };
@@ -378,7 +395,7 @@ function escapeHTML(value) {
 
 function toggleLang() {
   lang = lang === 'en' ? 'ja' : 'en';
-  applyLang();
+  if (DATA) rerenderDashboard(); else applyLang();
 }
 
 function applyLang() {
@@ -749,7 +766,7 @@ function buildTotal() {
     type: 'bar',
     data: {
       labels: DATA.users,
-      datasets: [{ label: 'Gross ($)', data: DATA.users.map(u => +DATA.user_total[u].toFixed(2)),
+      datasets: [{ label: t('dsGross'), data: DATA.users.map(u => +DATA.user_total[u].toFixed(2)),
         backgroundColor: PALETTE, borderRadius: 5, borderSkipped: false }]
     },
     options: {
@@ -822,6 +839,7 @@ function buildDaily() {
 
 function buildOrg() {
   const dateLabels = DATA.dates.map(d => d.slice(5));
+  const meteredSeriesLabel = t('dsMetered');
   const poolExhaustionDate = DATA.dates.find(d => (DATA.date_net[d] || 0) > 0.001) || null;
 
   // Inline plugin: vertical dashed line at pool-exhaustion date on time-series charts
@@ -875,7 +893,7 @@ function buildOrg() {
       labels: dateLabels,
       datasets: [
         {
-          label: 'Cumulative Gross ($)',
+          label: t('dsCumGross'),
           data: cumVals,
           borderColor: '#58a6ff',
           backgroundColor: '#58a6ff15',
@@ -886,7 +904,7 @@ function buildOrg() {
           tension: 0.3,
         },
         ...(hasMetered ? [{
-          label: 'Cumulative Net ($)',
+          label: t('dsCumNet'),
           data: cumNetVals,
           borderColor: '#d29922',
           backgroundColor: '#d2992215',
@@ -937,7 +955,7 @@ function buildOrg() {
       labels: dateLabels,
       datasets: [
         {
-          label: 'Covered ($)',
+          label: t('dsCovered'),
           data: dCoveredV,
           backgroundColor: '#58a6ff80',
           borderColor: '#58a6ff',
@@ -946,7 +964,7 @@ function buildOrg() {
           borderSkipped: false,
         },
         {
-          label: 'Metered ($)',
+          label: meteredSeriesLabel,
           data: dNetV,
           backgroundColor: '#d2992280',
           borderColor: '#d29922',
@@ -966,13 +984,13 @@ function buildOrg() {
           labels: {
             boxWidth: 12,
             font: { size: 11 },
-            filter: (item, data) => item.text !== 'Metered ($)' || data.datasets[1].data.some(v => v > 0),
+            filter: (item, data) => item.text !== meteredSeriesLabel || data.datasets[1].data.some(v => v > 0),
           }
         },
         tooltip: {
           callbacks: {
             label: c => c.raw > 0 ? ` ${c.dataset.label}: $${c.raw.toFixed(2)}` : null,
-            footer: items => ` Total: $${items.reduce((s, i) => s + i.raw, 0).toFixed(2)}`,
+            footer: items => ` ${t('lblTotal')}: $${items.reduce((s, i) => s + i.raw, 0).toFixed(2)}`,
           }
         }
       },

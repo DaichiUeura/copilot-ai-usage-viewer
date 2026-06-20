@@ -55,6 +55,12 @@ Compare view were removed when that happened. See
   all contents of git-tracked files — code, comments, docs, README, workflows,
   commit messages — are written in English. (Exceptions: user-facing UI strings stay
   bilingual via the `I18N` `ja` entries; chat replies follow the user's language.)
+- **Keep vendor terminology in `ja` translations.** When localizing UI strings,
+  translate the surrounding prose but keep GitHub Copilot's own terminology in the
+  vendor's wording — billing metrics (Gross, Net, Covered, Metered), product terms
+  (included usage, AI credit pool), and product names — in English or an established
+  katakana loanword, rather than inventing a Japanese translation. This is the
+  UI-label form of the "do not invent terminology" rule below.
 - **IMPORTANT — write for a reader with no project context.** Git-tracked files (code,
   comments, docs, commit messages) must read naturally to someone who never saw our chat.
   Never leave development-process residue: PoC/"gate"/step numbers, milestone or session
