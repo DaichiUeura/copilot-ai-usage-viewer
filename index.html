@@ -453,6 +453,15 @@ function metricValue(row, primaryKey, fallbackKey = null) {
   return 0;
 }
 
+// Inclusive list of every UTC calendar day from start to end ("YYYY-MM-DD").
+function dateRange(start, end) {
+  const out = [];
+  for (let t = Date.parse(start + 'T00:00:00Z'); t <= Date.parse(end + 'T00:00:00Z'); t += 86400000) {
+    out.push(new Date(t).toISOString().slice(0, 10));
+  }
+  return out;
+}
+
 function aggregate(rows) {
   const user_total = {}, user_model = {}, user_date = {};
   const model_total = {}, date_total = {}, date_net = {};
@@ -477,7 +486,14 @@ function aggregate(rows) {
     if (r['total_monthly_quota']) user_quota[u] = parseInt(r['total_monthly_quota']);
   });
   const users = Object.keys(user_total).sort((a, b) => user_total[b] - user_total[a]);
-  const dates  = [...new Set(rows.map(r => r['date']).filter(Boolean))].sort();
+  // Days with no usage produce no CSV rows. Fill the calendar gaps between the
+  // first and last dated row with explicit zeros so chart slopes track real
+  // elapsed time; trailing days past the last row are left out, since the CSV
+  // carries no report end date to tell a true zero from data not yet collected.
+  const present = [...new Set(rows.map(r => r['date']).filter(Boolean))].sort();
+  const dates   = present.length
+    ? dateRange(present[0].slice(0, 10), present[present.length - 1].slice(0, 10))
+    : [];
   const models = [...new Set(rows.map(r => r['model']).filter(Boolean))].sort();
   const orgs   = [...new Set(rows.map(r => r['organization']).filter(Boolean))];
   const grand_list = Object.values(user_total).reduce((s, v) => s + v, 0);

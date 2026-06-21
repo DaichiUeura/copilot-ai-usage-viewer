@@ -8,6 +8,7 @@ const standardUsageCsv = path.resolve(__dirname, 'fixtures', 'aic-all-zero-stand
 const allZeroCsv = path.resolve(__dirname, 'fixtures', 'all-zero-usage.csv');
 const meteredCsv = path.resolve(__dirname, 'fixtures', 'metered-usage.csv');
 const orgTotalCsv = path.resolve(__dirname, 'fixtures', 'org-total.csv');
+const dateGapCsv = path.resolve(__dirname, 'fixtures', 'date-gap.csv');
 const sampleCsvText = fs.readFileSync(sampleCsv, 'utf8');
 const allZeroCsvText = fs.readFileSync(allZeroCsv, 'utf8');
 
@@ -174,6 +175,28 @@ test('overview daily-total chart is stacked covered/metered bars', async ({ page
   expect(meteredData[idx3]).toBeCloseTo(2.30, 2);
   expect(coveredData[idx4]).toBeCloseTo(0.00, 2);
   expect(meteredData[idx4]).toBeCloseTo(3.00, 2);
+});
+
+// A day with no usage produces no CSV rows. The fixture has rows on 06-01, 06-02
+// and 06-04, leaving a gap on 06-03 that should render as an explicit zero so the
+// date axis stays evenly spaced. Nothing follows the last row (no trailing fill).
+test('date-axis charts fill interior gaps with zeros and do not extend past the last date', async ({ page }) => {
+  await loadCsvViaUpload(page, dateGapCsv);
+
+  const dtConfig = await getChartConfig(page, 'chartDateTotal');
+  const labels = dtConfig.data.labels;
+  // The missing day appears between its neighbors.
+  expect(labels).toEqual(['06-01', '06-02', '06-03', '06-04']);
+  // The filled day is a true zero, not a skipped point.
+  const covered = dtConfig.data.datasets[0].data;
+  expect(covered[labels.indexOf('06-03')]).toBeCloseTo(0, 2);
+
+  // Cumulative stays flat across the gap (slope zero), then resumes.
+  const cumConfig = await getChartConfig(page, 'chartCumulative');
+  const cum = cumConfig.data.datasets[0].data;
+  const cLabels = cumConfig.data.labels;
+  expect(cum[cLabels.indexOf('06-03')]).toBeCloseTo(cum[cLabels.indexOf('06-02')], 2);
+  expect(cum[cLabels.indexOf('06-04')]).toBeGreaterThan(cum[cLabels.indexOf('06-03')]);
 });
 
 test('language toggle rebuilds charts so localized series labels follow the language', async ({ page }) => {
