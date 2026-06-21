@@ -52,16 +52,18 @@
 
   /* Validation banner */
   #validationBanner { margin-bottom: 14px; }
-  .vb-ok { display: flex; align-items: center; gap: 6px; font-size: 0.74rem; color: #6e7681; padding: 2px 0; margin-bottom: 2px; }
-  .vb-ok .vb-detail-ok { color: #6e7681; margin-left: 2px; }
+  .vb-note { font-size: 0.74rem; color: #8b949e; padding: 2px 0; margin-bottom: 2px; }
+  .vb-note-head { display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; }
+  .vb-note-chevron { margin-left: 6px; font-size: 0.7rem; transition: transform 0.2s; }
+  .vb-note.open .vb-note-chevron { transform: rotate(180deg); }
+  .vb-note-detail { display: none; margin: 2px 0 0 22px; color: #6e7681; font-size: 0.72rem; }
+  .vb-note.open .vb-note-detail { display: block; }
   .vb-full { border-radius: 8px; overflow: hidden; border: 1px solid transparent; }
   .vb-full.warn { border-color: #9e6a03; background: #1f1500; }
   .vb-full.err  { border-color: #b91c1c; background: #1f0f0f; }
-  .vb-full.info { border-color: #1d4ed8; background: #0f172a; }
   .vb-header { display: flex; align-items: center; gap: 10px; padding: 10px 14px; cursor: pointer; user-select: none; font-size: 0.85rem; font-weight: 600; }
   .vb-full.warn .vb-header { color: #d29922; }
   .vb-full.err  .vb-header { color: #f87171; }
-  .vb-full.info .vb-header { color: #93c5fd; }
   .vb-chevron { margin-left: auto; font-size: 0.7rem; transition: transform 0.2s; }
   .vb-body { display: none; padding: 0 14px 12px; }
   .vb-body.open { display: block; }
@@ -271,10 +273,6 @@ const I18N = {
     coveredLabel:  'Covered by included usage',
     meteredLabel:  'Includes metered usage',
     // validation
-    vbOkLabel:     '',
-    vbOkText:      'Validation passed',
-    vbRowTotal:    'Row total',
-    vbInfoTitle:   'Information',
     vbWarnTitle:   'Warnings — please review',
     vbErrTitle:    'Errors detected — values may be inaccurate',
     vm: {
@@ -351,10 +349,6 @@ const I18N = {
     tipBadgeCover: 'Gross 使用量のうちプランの included AI credits でカバーされた割合',
     coveredLabel:  'Included usage でカバー済み',
     meteredLabel:  '従量課金（Metered usage）あり',
-    vbOkLabel:     '',
-    vbOkText:      '検証済み',
-    vbRowTotal:    '行合計',
-    vbInfoTitle:   '情報',
     vbWarnTitle:   '注意事項があります',
     vbErrTitle:    'エラーがあります — 値が不正確な可能性があります',
     vm: {
@@ -661,22 +655,31 @@ function renderCostBadges() {
 function renderValidation(v) {
   const el = document.getElementById('validationBanner');
   if (v.level === 'ok') {
-    el.innerHTML = `<div class="vb-ok">${t('vbOkText')} <span class="vb-detail-ok">· ${t('vbRowTotal')} $${v.rowSum.toFixed(2)}</span></div>`;
+    el.innerHTML = '';
+    return;
+  }
+
+  // info-only: a quiet note (summary inline, detail revealed on click) rather
+  // than the prominent banner reserved for warn/err data-quality alerts.
+  if (v.level === 'info') {
+    el.innerHTML = v.issues.filter(i => i.level === 'info').map(i => {
+      const { text, detail } = fmtIssue(i);
+      const head = `<div class="vb-note-head"${detail ? ' onclick="this.parentElement.classList.toggle(\'open\')"' : ''}><span>ⓘ</span><span>${escapeHTML(text)}</span>${detail ? '<span class="vb-note-chevron">⌄</span>' : ''}</div>`;
+      return `<div class="vb-note">${head}${detail ? `<div class="vb-note-detail">${escapeHTML(detail)}</div>` : ''}</div>`;
+    }).join('');
     return;
   }
 
   {
-    const bannerLevel = v.level === 'ok' ? 'info' : v.level;
-    const titleKey = bannerLevel === 'err' ? 'vbErrTitle' : bannerLevel === 'warn' ? 'vbWarnTitle' : 'vbInfoTitle';
+    const titleKey = v.level === 'err' ? 'vbErrTitle' : 'vbWarnTitle';
     const iconMap  = { err:'×', warn:'!', info:'·' };
     const items = v.issues.map(i => {
       const { text, detail } = fmtIssue(i);
       return `<div class="vb-item"><span class="vb-icon">${iconMap[i.level]}</span><div><div class="vb-text">${escapeHTML(text)}</div><div class="vb-detail-msg">${escapeHTML(detail)}</div></div></div>`;
     }).join('');
-    el.innerHTML = `<div class="vb-full ${bannerLevel}">
+    el.innerHTML = `<div class="vb-full ${v.level}">
       <div class="vb-header" onclick="this.nextElementSibling.classList.toggle('open');this.querySelector('.vb-chevron').style.transform=this.nextElementSibling.classList.contains('open')?'rotate(180deg)':''">
         <span>${t(titleKey)}</span>
-        <span style="margin-left:8px;font-size:0.78rem;color:#8b949e">${t('vbRowTotal')}: $${v.rowSum.toFixed(2)}</span>
         <span class="vb-chevron" style="transform:rotate(180deg)">▼</span>
       </div>
       <div class="vb-body open">${items}</div>

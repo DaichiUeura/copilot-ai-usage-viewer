@@ -57,8 +57,8 @@ test('loads the sample CSV and totals the standard billing columns', async ({ pa
   await expect(page.locator('#subtitle')).toContainText('Example Labs');
   // Single basis = standard gross_amount column ($72.08)
   await expect(page.locator('#costBadges .cost-stat').first()).toContainText('$72.08');
-  await expect(page.locator('#validationBanner')).toContainText(/Row total:? \$72\.08/);
-  await expect(page.locator('#validationBanner .vb-ok')).toContainText('Validation passed');
+  // No validation issues: the banner stays empty (no "all clear" line).
+  await expect(page.locator('#validationBanner')).toBeEmpty();
 
   // Mode switch and Compare view have been removed
   await page.locator('#menuBtn').click();
@@ -117,7 +117,7 @@ test('renders an all-zero file with zero totals', async ({ page }) => {
 
   await expect(page.locator('#dashboard')).toBeVisible();
   await expect(page.locator('#costBadges .cost-stat').first()).toContainText('$0.00');
-  await expect(page.locator('#validationBanner')).toContainText(/Row total:? \$0\.00/);
+  await expect(page.locator('#validationBanner')).toBeEmpty();
 });
 
 // Helper to get a chart stub's config by canvas element id
@@ -234,7 +234,15 @@ test('org-level CSV (single user) hides per-member tabs and shows an info banner
 
   await expect(page.locator('#dashboard')).toHaveClass(/org-level/);
   await expect(page.locator('#detailTabs')).toBeHidden();
-  await expect(page.locator('#validationBanner')).toContainText('per-member views hidden');
+
+  // Info is a quiet note, not the prominent warn/err banner: the summary shows
+  // without expanding, the detail is hidden until the note is clicked open.
+  await expect(page.locator('#validationBanner .vb-full')).toHaveCount(0);
+  await expect(page.locator('#validationBanner .vb-note-head')).toContainText('per-member views hidden');
+  const detail = page.locator('#validationBanner .vb-note-detail');
+  await expect(detail).toBeHidden();
+  await page.locator('#validationBanner .vb-note-head').click();
+  await expect(detail).toBeVisible();
 
   // Subtitle shows the org but not a member count.
   await expect(page.locator('#subtitle')).toContainText('Example Org');
