@@ -9,6 +9,7 @@ const allZeroCsv = path.resolve(__dirname, 'fixtures', 'all-zero-usage.csv');
 const meteredCsv = path.resolve(__dirname, 'fixtures', 'metered-usage.csv');
 const orgTotalCsv = path.resolve(__dirname, 'fixtures', 'org-total.csv');
 const dateGapCsv = path.resolve(__dirname, 'fixtures', 'date-gap.csv');
+const manyModelsCsv = path.resolve(__dirname, 'fixtures', 'many-models.csv');
 const sampleCsvText = fs.readFileSync(sampleCsv, 'utf8');
 const allZeroCsvText = fs.readFileSync(allZeroCsv, 'utf8');
 
@@ -265,6 +266,22 @@ test('org-level Overview still builds cumulative / model-share charts', async ({
   const share = await getChartConfig(page, 'chartModelShare');
   expect(share.data.labels).toContain('Model A');
   expect(share.data.labels).toContain('Model B');
+});
+
+test('model-share doughnut folds the long tail into a single Other slice', async ({ page }) => {
+  await loadCsvViaUpload(page, manyModelsCsv);
+
+  const share = await getChartConfig(page, 'chartModelShare');
+  // 10 models collapse to the top 8 plus one aggregated "Other" slice.
+  expect(share.data.labels).toHaveLength(9);
+  expect(share.data.labels.slice(0, 8)).toEqual([
+    'Model 01', 'Model 02', 'Model 03', 'Model 04',
+    'Model 05', 'Model 06', 'Model 07', 'Model 08',
+  ]);
+  expect(share.data.labels[8]).toBe('Other');
+  // Other sums the remaining models (20 + 10) and is drawn in neutral gray.
+  expect(share.data.datasets[0].data[8]).toBeCloseTo(30, 2);
+  expect(share.data.datasets[0].backgroundColor[8]).toBe('#6e7681');
 });
 
 test('multi-user CSV is NOT treated as org-level (regression)', async ({ page }) => {

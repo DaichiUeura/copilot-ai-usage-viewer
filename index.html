@@ -164,16 +164,16 @@
   <div id="overview" class="panel active">
     <div class="chart-card">
       <div class="chart-title" data-i18n="ctCumulative"></div>
-      <div class="chart-wrap" style="height:240px"><canvas id="chartCumulative"></canvas></div>
+      <div class="chart-wrap" style="height:340px"><canvas id="chartCumulative"></canvas></div>
     </div>
     <div class="grid-2">
       <div class="chart-card">
         <div class="chart-title" data-i18n="ctDateTotal"></div>
-        <div class="chart-wrap" style="height:260px"><canvas id="chartDateTotal"></canvas></div>
+        <div class="chart-wrap" style="height:320px"><canvas id="chartDateTotal"></canvas></div>
       </div>
       <div class="chart-card">
         <div class="chart-title" data-i18n="ctModelShare"></div>
-        <div class="chart-wrap" style="height:260px"><canvas id="chartModelShare"></canvas></div>
+        <div class="chart-wrap" style="height:320px"><canvas id="chartModelShare"></canvas></div>
       </div>
     </div>
   </div>
@@ -245,6 +245,7 @@ const I18N = {
     dsCovered:     'Covered ($)',
     dsMetered:     'Metered ($)',
     lblTotal:      'Total',
+    lblOther:      'Other',
     // table headers + tooltips
     colRank:    '#',
     colDate:    'Date',
@@ -324,6 +325,7 @@ const I18N = {
     dsCovered:     'Covered ($)',
     dsMetered:     'Metered ($)',
     lblTotal:      '合計',
+    lblOther:      'その他',
     colRank:    '#',
     colDate:    '日付',
     colUser:    'ユーザー',
@@ -950,9 +952,15 @@ function buildOrg() {
     plugins: [exhaustionLinePlugin]
   });
 
-  const ms = Object.entries(DATA.model_total).sort((a,b)=>b[1]-a[1]);
+  // Doughnut readability: keep the top models, fold the long tail into one
+  // neutral "Other" slice so slice colors stay distinct and the legend stays short.
+  const msAll = Object.entries(DATA.model_total).sort((a,b)=>b[1]-a[1]);
+  const TOP_MODELS = 8;
+  const tailSum = msAll.slice(TOP_MODELS).reduce((s, [, v]) => s + v, 0);
+  const hasOther = tailSum > 0;
+  const ms = hasOther ? [...msAll.slice(0, TOP_MODELS), [t('lblOther'), tailSum]] : msAll;
   const mL = ms.map(([m])=>m), mV = ms.map(([,v])=>+v.toFixed(2));
-  const mC = mL.map((_,i)=>PALETTE[i%PALETTE.length]);
+  const mC = mL.map((_,i)=> hasOther && i === mL.length-1 ? '#6e7681' : PALETTE[i%PALETTE.length]);
   charts.modelShare = new Chart(document.getElementById('chartModelShare').getContext('2d'), {
     type: 'doughnut',
     data: { labels: mL, datasets: [{ data: mV, backgroundColor: mC, borderWidth: 1, borderColor: '#0d1117' }] },

@@ -1,0 +1,11 @@
+date,username,product,sku,model,quantity,unit_type,applied_cost_per_quantity,gross_amount,discount_amount,net_amount,total_monthly_quota,organization,cost_center_name,aic_quantity,aic_gross_amount
+2026-06-01,alice,copilot,copilot_ai_credit,Model 01,100,ai-credits,0.01,100.00,100.00,0.00,500,Test Org,Eng,0,0.00
+2026-06-01,bob,copilot,copilot_ai_credit,Model 02,90,ai-credits,0.01,90.00,90.00,0.00,500,Test Org,Eng,0,0.00
+2026-06-01,alice,copilot,copilot_ai_credit,Model 03,80,ai-credits,0.01,80.00,80.00,0.00,500,Test Org,Eng,0,0.00
+2026-06-01,bob,copilot,copilot_ai_credit,Model 04,70,ai-credits,0.01,70.00,70.00,0.00,500,Test Org,Eng,0,0.00
+2026-06-01,alice,copilot,copilot_ai_credit,Model 05,60,ai-credits,0.01,60.00,60.00,0.00,500,Test Org,Eng,0,0.00
+2026-06-01,bob,copilot,copilot_ai_credit,Model 06,50,ai-credits,0.01,50.00,50.00,0.00,500,Test Org,Eng,0,0.00
+2026-06-01,alice,copilot,copilot_ai_credit,Model 07,40,ai-credits,0.01,40.00,40.00,0.00,500,Test Org,Eng,0,0.00
+2026-06-01,bob,copilot,copilot_ai_credit,Model 08,30,ai-credits,0.01,30.00,30.00,0.00,500,Test Org,Eng,0,0.00
+2026-06-01,alice,copilot,copilot_ai_credit,Model 09,20,ai-credits,0.01,20.00,20.00,0.00,500,Test Org,Eng,0,0.00
+2026-06-01,bob,copilot,copilot_ai_credit,Model 10,10,ai-credits,0.01,10.00,10.00,0.00,500,Test Org,Eng,0,0.00
