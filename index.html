@@ -245,9 +245,9 @@ const I18N = {
     ctCumulative:  'Cumulative Cost',
     ctMembersGross: 'Usage by Member (Gross)',
     ctMembersNet:   'Billed by Member (Net)',
-    ctModel:       'Usage by Member & Model',
-    ctDaily:       'Daily Trend by Member (Top 8)',
-    ctModelShare:  'Model Share',
+    ctModel:       'Usage by Member & Model (Gross)',
+    ctDaily:       'Daily Trend by Member — Top 8 (Gross)',
+    ctModelShare:  'Model Share (Gross)',
     ctDateTotal:   'Daily Total',
     ctTable:       'Member Detail',
     dsGross:       'Gross ($)',
@@ -330,9 +330,9 @@ const I18N = {
     ctCumulative:  '累積コスト',
     ctMembersGross: 'メンバー別使用量（Gross）',
     ctMembersNet:   'メンバー別課金（Net）',
-    ctModel:       'メンバー別・モデル別使用量',
-    ctDaily:       '日別トレンド（上位 8 名）',
-    ctModelShare:  'モデルシェア',
+    ctModel:       'メンバー別・モデル別使用量（Gross）',
+    ctDaily:       '日別トレンド・上位 8 名（Gross）',
+    ctModelShare:  'モデルシェア（Gross）',
     ctDateTotal:   '日別合計',
     ctTable:       'メンバー詳細',
     dsGross:       'Gross ($)',
@@ -769,7 +769,7 @@ function setActiveTab(name) {
 
 function buildActiveTab() {
   if (activeTab === 'overview' && !charts.cumulative) buildOrg();
-  if (activeTab === 'members') { if (!charts.total) buildTotal(); buildTable(); }
+  if (activeTab === 'members') { if (!charts.total) buildMembers(); buildTable(); }
   if (activeTab === 'model' && !charts.model) buildModel();
   if (activeTab === 'daily' && !charts.daily) buildDaily();
 }
@@ -824,7 +824,7 @@ function memberBarChart(canvasId, labels, data, color, label) {
 // Members tab: members ranked by Gross (left) and by Net/metered (right). The two
 // answer different questions — total consumption vs. who drives the bill. The Net
 // chart lists only members with metered usage; with none, it shows a caption.
-function buildTotal() {
+function buildMembers() {
   charts.total = memberBarChart('chartTotal', DATA.users,
     DATA.users.map(u => +DATA.user_total[u].toFixed(2)), '#58a6ff', t('dsGross'));
 

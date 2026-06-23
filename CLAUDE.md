@@ -48,6 +48,13 @@ Compare view were removed when that happened. See
   `PALETTE` is the one shared array (series colors).
 - **Net / metered coloring.** Amber `#d29922` denotes metered (overage) usage;
   threshold for "has metered" is `net > 0.001`. Blue `#58a6ff` is gross/covered.
+- **Name the basis in single-basis chart titles** (e.g. `(Gross)`) whenever the chart
+  surfaces an absolute dollar amount anywhere it's read — axis, bar, **or tooltip**. A
+  share/proportion chart that shows only percentages needs no tag; Model Share is
+  tagged because its tooltip still emits Gross dollars (drop the tag only if that
+  tooltip is ever reduced to percentages). Split/coverage charts (Cumulative, Daily
+  Total) let their legend carry the basis (Gross/Net or Covered/Metered series)
+  instead. See "Basis follows the question" in [docs/scope.md](docs/scope.md).
 - **Escape user content** with `escapeHTML()` when injecting into innerHTML
   (usernames, model names come from the CSV).
 - **Dark theme** GitHub-like palette (`#0d1117` bg, `#e6edf3` text).

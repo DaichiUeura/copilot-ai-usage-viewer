@@ -28,16 +28,31 @@ their own usage. That distinction is what most scope calls come down to.
 3. **Privacy by default.** The CSV stays in the browser. Never bundle real exports
    into the repo, tests, or fixtures — synthesize anonymized data instead.
 
-Two working rules that follow from these:
+Working rules that follow from these:
 
 - **Single basis.** All numbers come from the standard billing columns
   (`gross_amount` / `net_amount`); don't present a value on a basis it isn't
   computed from. The deprecated `aic_*` preview columns are ignored — see
   [csv-interpretation-policy.md](csv-interpretation-policy.md).
-- **Asymmetry is fine.** Some charts are gross-only while Overview is
-  metered-aware. Don't add a chart, or push metered everywhere, just for symmetry.
-  Equally, removing a stable feature has churn risk — prefer leaving it over a
-  marginal cleanup.
+- **Basis follows the question.** Whether a view shows Gross, Net, or both is
+  decided by what the user is asking there:
+  - *Coverage / spend* ("how much, how much is covered") shows Gross and Net
+    together — the gap between them is the answer (Overview's cumulative and daily
+    charts, the cost badges).
+  - *Cost attribution* ("who or what drives the bill") shows Net alongside Gross,
+    because once the credit pool is exhausted a high-Gross member can be fully
+    covered (the Members charts and detail table).
+  - *Composition / usage pattern* by a dimension shows Gross only — per-cell Net
+    is mostly zero, so splitting it adds noise, not an answer (By Model, Daily
+    Trend, Model Share).
+
+  So gross-only and metered-aware views coexist by design. Test for a new view:
+  does the answer change depending on covered-vs-metered? If yes, surface Net; if
+  it's about usage composition, stay gross-only. Don't push metered everywhere
+  just for symmetry. Basis is fixed per view by its question, not chosen by the
+  user — the tool has no global Gross/Net mode toggle.
+- **Prefer leaving stable features over marginal cleanup.** Removing something
+  that works carries churn risk of its own.
 
 ## Out of scope
 
