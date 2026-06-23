@@ -178,6 +178,40 @@ test('overview daily-total chart is stacked covered/metered bars', async ({ page
   expect(meteredData[idx4]).toBeCloseTo(3.00, 2);
 });
 
+async function openMembersTab(page) {
+  await page.locator('.tab[data-tab="members"]').click();
+  await expect(page.locator('#members.panel.active')).toBeVisible();
+}
+
+test('members tab ranks members by Gross and by Net in separate charts', async ({ page }) => {
+  await loadCsvViaUpload(page, meteredCsv);
+  await openMembersTab(page);
+
+  // Left: ranked by Gross desc. alice 5.50 > bob 5.00.
+  const gross = await getChartConfig(page, 'chartTotal');
+  expect(gross.data.labels).toEqual(['alice', 'bob']);
+  expect(gross.data.datasets[0].label).toBe('Gross ($)');
+  expect(gross.data.datasets[0].backgroundColor).toBe('#58a6ff');
+
+  // Right: ranked by Net desc, which differs — bob 2.80 > alice 2.50.
+  const net = await getChartConfig(page, 'chartTotalNet');
+  expect(net.data.labels).toEqual(['bob', 'alice']);
+  expect(net.data.datasets[0].label).toBe('Net ($)');
+  expect(net.data.datasets[0].backgroundColor).toBe('#d29922');
+  expect(net.data.datasets[0].data[0]).toBeCloseTo(2.80, 2);
+
+  await expect(page.locator('#membersNetEmpty')).toBeHidden();
+});
+
+test('members Net chart is replaced by a caption when nothing is metered', async ({ page }) => {
+  await loadCsvViaUpload(page, standardUsageCsv);
+  await openMembersTab(page);
+
+  expect(await getChartConfig(page, 'chartTotal')).not.toBeNull();
+  expect(await getChartConfig(page, 'chartTotalNet')).toBeNull();
+  await expect(page.locator('#membersNetEmpty')).toBeVisible();
+});
+
 // A day with no usage produces no CSV rows. The fixture has rows on 06-01, 06-02
 // and 06-04, leaving a gap on 06-03 that should render as an explicit zero so the
 // date axis stays evenly spaced. Nothing follows the last row (no trailing fill).

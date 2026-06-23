@@ -178,9 +178,19 @@
     </div>
   </div>
   <div id="members" class="panel">
-    <div class="chart-card">
-      <div class="chart-title" data-i18n="ctMembers"></div>
-      <div class="chart-wrap" style="height:340px"><canvas id="chartTotal"></canvas></div>
+    <div class="grid-2">
+      <div class="chart-card">
+        <div class="chart-title" data-i18n="ctMembersGross"></div>
+        <div class="chart-wrap" style="height:340px"><canvas id="chartTotal"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title" data-i18n="ctMembersNet"></div>
+        <div class="chart-wrap" style="height:340px">
+          <canvas id="chartTotalNet"></canvas>
+          <div id="membersNetEmpty" data-i18n="membersNetEmpty"
+               style="display:none; position:absolute; inset:0; align-items:center; justify-content:center; text-align:center; padding:0 24px; color:#8b949e; font-size:0.85rem;"></div>
+        </div>
+      </div>
     </div>
     <div class="chart-card" style="margin-top:0">
       <div class="chart-title" data-i18n="ctTable"></div>
@@ -233,17 +243,20 @@ const I18N = {
     tabDaily:    'Daily Trend',
     // chart titles
     ctCumulative:  'Cumulative Cost',
-    ctMembers:     'Usage by Member',
+    ctMembersGross: 'Usage by Member (Gross)',
+    ctMembersNet:   'Billed by Member (Net)',
     ctModel:       'Usage by Member & Model',
     ctDaily:       'Daily Trend by Member (Top 8)',
     ctModelShare:  'Model Share',
     ctDateTotal:   'Daily Total',
     ctTable:       'Member Detail',
     dsGross:       'Gross ($)',
+    dsNet:         'Net ($)',
     dsCumGross:    'Cumulative Gross ($)',
     dsCumNet:      'Cumulative Net ($)',
     dsCovered:     'Covered ($)',
     dsMetered:     'Metered ($)',
+    membersNetEmpty: 'No metered usage — fully covered by included usage',
     lblTotal:      'Total',
     lblOther:      'Other',
     // table headers + tooltips
@@ -315,17 +328,20 @@ const I18N = {
     tabModel:    'モデル別',
     tabDaily:    '日別トレンド',
     ctCumulative:  '累積コスト',
-    ctMembers:     'メンバー別使用量',
+    ctMembersGross: 'メンバー別使用量（Gross）',
+    ctMembersNet:   'メンバー別課金（Net）',
     ctModel:       'メンバー別・モデル別使用量',
     ctDaily:       '日別トレンド（上位 8 名）',
     ctModelShare:  'モデルシェア',
     ctDateTotal:   '日別合計',
     ctTable:       'メンバー詳細',
     dsGross:       'Gross ($)',
+    dsNet:         'Net ($)',
     dsCumGross:    '累積 Gross ($)',
     dsCumNet:      '累積 Net ($)',
     dsCovered:     'Covered ($)',
     dsMetered:     'Metered ($)',
+    membersNetEmpty: '従量課金（Metered usage）なし — included usage で全額カバー済み',
     lblTotal:      '合計',
     lblOther:      'その他',
     colRank:    '#',
@@ -792,21 +808,37 @@ Chart.defaults.borderColor = '#21262d';
 // =====================================================================
 // Charts
 // =====================================================================
-function buildTotal() {
-  const ctx = document.getElementById('chartTotal').getContext('2d');
-  charts.total = new Chart(ctx, {
+// Horizontal ranked bar of one $ metric per member (single solid color).
+function memberBarChart(canvasId, labels, data, color, label) {
+  return new Chart(document.getElementById(canvasId).getContext('2d'), {
     type: 'bar',
-    data: {
-      labels: DATA.users,
-      datasets: [{ label: t('dsGross'), data: DATA.users.map(u => +DATA.user_total[u].toFixed(2)),
-        backgroundColor: PALETTE, borderRadius: 5, borderSkipped: false }]
-    },
+    data: { labels, datasets: [{ label, data, backgroundColor: color, borderRadius: 5, borderSkipped: false }] },
     options: {
       indexAxis: 'y', responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` $${c.raw.toFixed(2)}` } } },
       scales: { x: { grid: { color: '#21262d' }, ticks: { callback: v => `$${v}` } }, y: { grid: { display: false } } }
     }
   });
+}
+
+// Members tab: members ranked by Gross (left) and by Net/metered (right). The two
+// answer different questions — total consumption vs. who drives the bill. The Net
+// chart lists only members with metered usage; with none, it shows a caption.
+function buildTotal() {
+  charts.total = memberBarChart('chartTotal', DATA.users,
+    DATA.users.map(u => +DATA.user_total[u].toFixed(2)), '#58a6ff', t('dsGross'));
+
+  const canvas = document.getElementById('chartTotalNet');
+  const empty  = document.getElementById('membersNetEmpty');
+  const netUsers = DATA.users.filter(u => (DATA.user_net[u] || 0) > 0.001)
+                             .sort((a, b) => DATA.user_net[b] - DATA.user_net[a]);
+  if (DATA.grand_net > 0.001 && netUsers.length) {
+    canvas.style.display = ''; empty.style.display = 'none';
+    charts.totalNet = memberBarChart('chartTotalNet', netUsers,
+      netUsers.map(u => +DATA.user_net[u].toFixed(2)), '#d29922', t('dsNet'));
+  } else {
+    canvas.style.display = 'none'; empty.style.display = 'flex';
+  }
 }
 
 function buildModel() {
