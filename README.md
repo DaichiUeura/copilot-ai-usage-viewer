@@ -31,6 +31,16 @@ https://daichiueura.github.io/copilot-ai-usage-viewer/?csv=https://example.com/a
 
 The resolved URL must be HTTP(S), and CSV files are limited to 10 MB.
 
+### Mark a usage limit
+
+Use `net_limit=` to draw a horizontal reference line on the Overview cumulative
+chart, against the cumulative Net (metered) line. The value is supplied here, not
+read from the CSV. With no `net_limit`, nothing is drawn.
+
+```text
+https://daichiueura.github.io/copilot-ai-usage-viewer/?csv=reports/ai-usage-report.csv&net_limit=10000
+```
+
 ## Views
 
 - **Overview** — cumulative spend, daily total, model share; metered billing overlay when applicable

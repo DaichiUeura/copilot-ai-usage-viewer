@@ -225,6 +225,35 @@ test('overview cumulative chart has single dataset when all usage is pool-covere
   const cumConfig = await getChartConfig(page, 'chartCumulative');
   expect(cumConfig.data.datasets).toHaveLength(1);
   expect(cumConfig.data.datasets[0].label).toBe('Cumulative Gross ($)');
+  // Without ?net_limit, the y axis is not stretched to any ceiling.
+  expect(cumConfig.options.scales.y.suggestedMax).toBeUndefined();
+});
+
+// The ?net_limit= query param overlays an external reference ceiling on the
+// cumulative chart's Net line. It is not derived from the CSV.
+test('net_limit query param adds the limit-line plugin and stretches the y axis', async ({ page }) => {
+  await page.goto(`${appUrl}?net_limit=10000`);
+  await page.locator('#fileInput').setInputFiles(meteredCsv);
+  await expect(page.locator('#dashboard')).toBeVisible();
+
+  const cumConfig = await getChartConfig(page, 'chartCumulative');
+  expect(cumConfig.plugins.some(p => p.id === 'limitLine')).toBe(true);
+  expect(cumConfig.options.scales.y.suggestedMax).toBeCloseTo(10500, 2);
+});
+
+test('net_limit forces the Net baseline even when all usage is pool-covered', async ({ page }) => {
+  // standard usage with net_amount = 0 throughout would normally hide the Net line,
+  // but the limit needs its basis on screen, so the Net (zero) baseline is shown.
+  await page.goto(`${appUrl}?net_limit=5`);
+  await page.locator('#fileInput').setInputFiles(standardUsageCsv);
+  await expect(page.locator('#dashboard')).toBeVisible();
+
+  const cumConfig = await getChartConfig(page, 'chartCumulative');
+  expect(cumConfig.data.datasets).toHaveLength(2);
+  expect(cumConfig.data.datasets[1].label).toBe('Cumulative Net ($)');
+  expect(cumConfig.data.datasets[1].data.every(v => v === 0)).toBe(true);
+  expect(cumConfig.plugins.some(p => p.id === 'limitLine')).toBe(true);
+  expect(cumConfig.options.scales.y.suggestedMax).toBeCloseTo(5.25, 2);
 });
 
 // Org-level mode: a CSV with a single distinct username (no per-member breakdown)

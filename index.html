@@ -262,6 +262,8 @@ const I18N = {
     tipModel:   'The model with the highest gross AI credit consumption for this member.',
     // overview overlays
     poolExhaustedLabel: 'Pool exhausted',
+    limitLine:     'Net limit',
+    limitLineNote: 'May stop usage, depending on org settings',
     // badges
     badgeGross:    'Gross',
     badgeNet:      'Net',
@@ -341,6 +343,8 @@ const I18N = {
     tipModel:   'このメンバーで最も多く消費した AI クレジットのモデル。',
     // overview overlays
     poolExhaustedLabel: 'プール枯渇',
+    limitLine:     'Net リミット',
+    limitLineNote: '組織の設定により利用が停止する制限ライン',
     badgeGross:    'Gross',
     badgeNet:      'Net',
     badgeNetWarn:  'Net',
@@ -565,6 +569,13 @@ function fmtIssue(issue) {
 // State
 // =====================================================================
 let DATA = null, lastValidation = null, activeTab = 'overview', currentFilename = '';
+// Optional reference ceiling for the cumulative chart, supplied externally via the
+// ?net_limit= URL param (not derived from the CSV). Drawn against the cumulative
+// Net (metered) line. Only a finite, positive number is honored; otherwise null.
+const reportLimit = (() => {
+  const raw = Number(new URLSearchParams(window.location.search).get('net_limit'));
+  return Number.isFinite(raw) && raw > 0 ? raw : null;
+})();
 const charts = {};
 let sortState = { col: 'total', dir: 'desc' };
 let chartResizeFrame = null;
@@ -863,10 +874,12 @@ function buildOrg() {
   const meteredSeriesLabel = t('dsMetered');
   const poolExhaustionDate = DATA.dates.find(d => (DATA.date_net[d] || 0) > 0.001) || null;
 
-  // Inline plugin: vertical dashed line at pool-exhaustion date on time-series charts
+  // Inline plugin: vertical dashed line at pool-exhaustion date on time-series charts.
+  // Drawn on top of the datasets so the line keeps full contrast over both the
+  // area fills (line chart) and the bars (bar chart).
   const exhaustionLinePlugin = {
     id: 'exhaustionLine',
-    beforeDraw(chart) {
+    afterDatasetsDraw(chart) {
       if (!poolExhaustionDate) return;
       const { ctx, chartArea, scales } = chart;
       if (!scales.x || !chartArea) return;
@@ -876,8 +889,8 @@ function buildOrg() {
       ctx.save();
       ctx.beginPath();
       ctx.setLineDash([4, 4]);
-      ctx.strokeStyle = '#d29922';
-      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = '#d2992299';
+      ctx.lineWidth = 1;
       ctx.moveTo(x, chartArea.top);
       ctx.lineTo(x, chartArea.bottom);
       ctx.stroke();
@@ -894,6 +907,63 @@ function buildOrg() {
     }
   };
 
+  // Inline plugin: horizontal dashed line at the externally supplied net limit.
+  // Amber matches the Net series (whose ceiling this is); the red label flags it as
+  // a limit. The explanatory note shows only while hovering the line.
+  const limitLinePlugin = {
+    id: 'limitLine',
+    afterEvent(chart, args) {
+      const { chartArea, scales } = chart;
+      if (!scales.y || !chartArea) return;
+      const y = scales.y.getPixelForValue(reportLimit);
+      const e = args.event;
+      const hover = !!e && e.type !== 'mouseout' &&
+        y >= chartArea.top && y <= chartArea.bottom &&
+        e.x >= chartArea.left && e.x <= chartArea.right && Math.abs(e.y - y) <= 4;
+      if (hover !== !!chart.$limitHover) { chart.$limitHover = hover; args.changed = true; }
+      if (hover) chart.$limitHoverX = e.x;
+    },
+    afterDatasetsDraw(chart) {
+      const { ctx, chartArea, scales } = chart;
+      if (!scales.y || !chartArea) return;
+      const y = scales.y.getPixelForValue(reportLimit);
+      if (y == null || y < chartArea.top || y > chartArea.bottom) return;
+      ctx.save();
+      ctx.beginPath();
+      ctx.setLineDash([6, 4]);
+      ctx.strokeStyle = '#d2992299';
+      ctx.lineWidth = 1;
+      ctx.moveTo(chartArea.left, y);
+      ctx.lineTo(chartArea.right, y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.font = '10px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+      ctx.fillStyle = '#f85149';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(`${t('limitLine')} $${reportLimit.toLocaleString()}`, chartArea.left + 6, y - 3);
+      // On hover, reveal the explanatory note as a small tooltip near the cursor.
+      if (chart.$limitHover) {
+        const note = t('limitLineNote');
+        const padX = 6, padY = 4;
+        const w = ctx.measureText(note).width + padX * 2;
+        const h = 10 + padY * 2;
+        let bx = (chart.$limitHoverX ?? chartArea.left) - w / 2;
+        bx = Math.max(chartArea.left, Math.min(bx, chartArea.right - w));
+        const by = Math.min(y + 6, chartArea.bottom - h);
+        ctx.fillStyle = '#161b22';
+        ctx.strokeStyle = '#30363d';
+        ctx.lineWidth = 1;
+        ctx.fillRect(bx, by, w, h);
+        ctx.strokeRect(bx, by, w, h);
+        ctx.fillStyle = '#e6edf3';
+        ctx.textBaseline = 'top';
+        ctx.fillText(note, bx + padX, by + padY);
+      }
+      ctx.restore();
+    }
+  };
+
   // Cumulative gross + optional cumulative net line
   const cumVals = DATA.dates.reduce((acc, d) => {
     const last = acc.length > 0 ? acc[acc.length-1] : 0;
@@ -901,6 +971,9 @@ function buildOrg() {
     return acc;
   }, []);
   const hasMetered = DATA.grand_net > 0.001;
+  // Show the Net line whenever a limit is set, so the limit line has its basis to
+  // sit against even before any metered (overage) usage has occurred.
+  const showNet = hasMetered || reportLimit != null;
   const exhaustionIdx = poolExhaustionDate ? DATA.dates.indexOf(poolExhaustionDate) : -1;
   const cumNetVals = DATA.dates.reduce((acc, d, i) => {
     const last = acc.length > 0 && acc[acc.length - 1] !== null ? acc[acc.length - 1] : 0;
@@ -924,7 +997,7 @@ function buildOrg() {
           fill: true,
           tension: 0.3,
         },
-        ...(hasMetered ? [{
+        ...(showNet ? [{
           label: t('dsCumNet'),
           data: cumNetVals,
           borderColor: '#d29922',
@@ -941,15 +1014,16 @@ function buildOrg() {
       responsive: true, maintainAspectRatio: false,
       layout: poolExhaustionDate ? { padding: { top: 18 } } : {},
       plugins: {
-        legend: { display: hasMetered, position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+        legend: { display: showNet, position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
         tooltip: { callbacks: { label: c => ` $${c.raw.toFixed(2)}` } }
       },
       scales: {
-        y: { grid: { color: '#21262d' }, ticks: { callback: v=>`$${v}` }, beginAtZero: true },
+        y: { grid: { color: '#21262d' }, ticks: { callback: v=>`$${v}` }, beginAtZero: true,
+             ...(reportLimit != null ? { suggestedMax: reportLimit * 1.05 } : {}) },
         x: { grid: { color: '#21262d' }, ticks: { autoSkip: false, maxRotation: 90, minRotation: 0, callback: dateAxisTick } }
       }
     },
-    plugins: [exhaustionLinePlugin]
+    plugins: reportLimit != null ? [exhaustionLinePlugin, limitLinePlugin] : [exhaustionLinePlugin]
   });
 
   // Doughnut readability: keep the top models, fold the long tail into one
