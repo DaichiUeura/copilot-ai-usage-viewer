@@ -64,12 +64,20 @@ Supports EN / 日本語. Validates the CSV format on load.
 
 ## Automation (optional)
 
-GitHub only shows organization-wide AI credit usage to billing admins. To share it with
-people who can't see it in the GitHub UI, the [automation/](automation/) folder has two
-small Node scripts that pull org totals from GitHub's
-[AI credit usage report API](https://docs.github.com/en/rest/billing/usage) and write a
-CSV this viewer can open. Run them on demand or on a schedule (e.g. GitHub Actions), then
-host the CSV for your team.
+GitHub only shows AI credit usage to billing admins. To share it with people who can't see it
+in the GitHub UI, the [automation/](automation/) folder has small, dependency-free Node scripts
+that rebuild the data from the API and write CSVs this viewer can open. There are two recipes:
+
+- **Organization totals** — gross and net from the
+  [AI credit usage report API](https://docs.github.com/en/rest/billing/usage). No per-member
+  rows, so the result is safe to publish to non-admins.
+- **Per-user consumption** — how much each member consumed, day by day, from the Copilot usage
+  metrics reports. Gross only: no API attributes net to an individual member, so those columns
+  are left empty rather than estimated.
+
+Run them on demand or on a schedule (e.g. GitHub Actions), then host the CSV for your team.
+See [automation/README.md](automation/README.md) for the scripts, tokens, and what each CSV
+does and does not carry.
 
 ## Testing
 
