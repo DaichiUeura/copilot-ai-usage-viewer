@@ -1,0 +1,23 @@
+[
+  {
+    "day": "2026-05-04",
+    "user_login": "alice",
+    "code_generation_activity_count": 42,
+    "used_agent": true,
+    "ai_credits_used": 7
+  },
+  {
+    "day": "2026-05-04",
+    "user_login": "bob",
+    "code_generation_activity_count": 310,
+    "used_agent": true,
+    "ai_credits_used": 1234.5
+  },
+  {
+    "day": "2026-05-04",
+    "user_login": "carol",
+    "code_generation_activity_count": 8,
+    "used_agent": false,
+    "ai_credits_used": 0.5
+  }
+]
