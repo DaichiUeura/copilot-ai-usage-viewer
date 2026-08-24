@@ -147,17 +147,30 @@ front of people:
    an internal server, GitHub Pages). On **GitHub Enterprise Cloud**, a member-restricted
    **private GitHub Pages** site lets non-admins with repo read access self-serve the
    always-current Overview. Keep the data repo private — `workflows/update-overview.yml` is
-   a ready-to-copy daily template for exactly this.
+   a ready-to-copy template for exactly this.
 
 ## Deploying with the workflow (GitHub Pages)
 
-`workflows/update-overview.yml` builds the org-totals CSV and deploys the viewer to GitHub
-Pages on a daily schedule. To use it, create a **private** repository — putting it in the
-target org lets `ORG` default to the repo owner — containing:
+`workflows/` carries two ready-to-copy templates. Both build the CSV and deploy the viewer to
+GitHub Pages every hour, so the newest day tracks the current UTC day as it accumulates. On the
+1st of a month the fetch covers the just-completed previous month instead, so a new month first
+appears on the 2nd.
+
+- **`update-overview.yml`** publishes the org totals alone — no member names, so the page is
+  safe for any non-admin to open.
+- **`update-overview-and-members.yml`** adds the per-user CSV, for a site the whole org may
+  read. See "Publishing the per-user CSV too" below before choosing it.
+
+On a plan with a small Actions allowance, `'17 */3 * * *'` (every three hours) costs a third as
+much.
+
+To use one, create a **private** repository — putting it in the target org lets `ORG` default to
+the repo owner — containing:
 
 - `index.html` (the viewer)
-- `automation/scripts/fetch.mjs` and `automation/scripts/transform.mjs`
-- `.github/workflows/update-overview.yml` (copied from this template)
+- `automation/scripts/fetch.mjs` and `automation/scripts/transform.mjs`, plus the two `-users`
+  scripts if you picked the Overview-and-Members template
+- the template you picked, copied into `.github/workflows/`
 
 Then:
 
@@ -172,13 +185,23 @@ Then:
 5. Trigger it from the Actions tab (or wait for the schedule), then share
    `<pages-url>/index.html?csv=./data/ai-credit-usage.csv`.
 
-To publish the per-user CSV as well, add the two `-users` scripts to the repository and give
-them their own steps, setting the directories explicitly the way the template's steps already
-do — `USERS_RAW_DIR` for the fetch step, then `USERS_RAW_DIR`, `ORG` and `OUT_CSV` for the
-transform step. The token needs the Copilot metrics permission on top of the billing one.
-Then share both CSVs on one page:
+### Publishing the per-user CSV too
+
+`workflows/update-overview-and-members.yml` builds both CSVs in one run. Copy it instead of
+`update-overview.yml`, add the two `-users` scripts to the repository, and give the PAT the
+View Organization Copilot Metrics permission on top of the billing one. Then share both CSVs on
+one page:
 `<pages-url>/index.html?csv=./data/ai-credit-usage.csv&users_csv=./data/ai-credit-usage-by-user.csv`.
 Because that CSV names members, publish it only to a site the whole org may read.
+
+Two things to expect from the metrics feed:
+
+- A day's report is not served until several hours into the next UTC day, so Members catches up
+  over the course of that day rather than at a fixed time. A schedule that only ran near the UTC
+  rollover would never reach it.
+- Until the reports have been generated for the org at all, the fetch step finds nothing to save
+  and the transform step then stops with `Input directory not found`, taking the whole run with
+  it. Start with `update-overview.yml` and switch once Members has data.
 
 ## Privacy
 

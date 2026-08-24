@@ -1,0 +1,79 @@
+# Production deploy template — hourly build of the AI credit usage Overview and the per-member
+# breakdown to GitHub Pages. The per-user CSV names real people, so deploy this one only to a
+# site the whole organization may read; use update-overview.yml for a page open to non-admins.
+#
+# This is a TEMPLATE; it lives in automation/ so it does not run here. Copy it to
+# .github/workflows/update-overview-and-members.yml in your own private repo and configure
+# the secret, variable, and Pages source — see automation/README.md ("Deploying with the workflow").
+name: Update AI credit usage Overview and Members
+
+on:
+  schedule:
+    # Hourly at :17 — off the top of the hour, where scheduled runs queue up.
+    # The newest day is the current UTC day, which the API reports as it accumulates.
+    # On the 1st of a month the fetch covers the previous month in full instead.
+    - cron: '17 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false # let an in-flight deployment finish
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Fetch usage (raw JSON)
+        env:
+          AI_USAGE_PAT: ${{ secrets.AI_USAGE_PAT }}
+          ORG: ${{ vars.ORG || github.repository_owner }}
+          RAW_DIR: ./out/raw
+        run: node automation/scripts/fetch.mjs
+
+      - name: Build CSV into the site directory
+        env:
+          RAW_DIR: ./out/raw
+          OUT_CSV: ./site/data/ai-credit-usage.csv
+        run: node automation/scripts/transform.mjs
+
+      # Per-user consumption from the Copilot usage metrics reports, rendered in the Members tab.
+      # The PAT needs the View Organization Copilot Metrics permission on top of the billing one.
+      # A failure here fails the job on purpose: the site is rebuilt whole every run, so leaving
+      # the last successful deployment live beats replacing it with one missing its Members data.
+      - name: Fetch per-user consumption (raw JSON)
+        env:
+          AI_USAGE_PAT: ${{ secrets.AI_USAGE_PAT }}
+          ORG: ${{ vars.ORG || github.repository_owner }}
+          USERS_RAW_DIR: ./out/raw-users
+        run: node automation/scripts/fetch-users.mjs
+
+      - name: Build per-user CSV into the site directory
+        env:
+          USERS_RAW_DIR: ./out/raw-users
+          ORG: ${{ vars.ORG || github.repository_owner }}
+          BILLING_RAW_DIR: ./out/raw # cross-check the daily totals (advisory only)
+          OUT_CSV: ./site/data/ai-credit-usage-by-user.csv
+        run: node automation/scripts/transform-users.mjs
+
+      - name: Assemble site (viewer + CSVs only)
+        run: cp index.html ./site/index.html
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: ./site
+
+      - id: deploy
+        uses: actions/deploy-pages@v5
