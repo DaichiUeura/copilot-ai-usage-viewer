@@ -145,7 +145,7 @@ async function main() {
 }
 
 // Run only when invoked as a script, so resolveDays can be imported on its own.
-if (import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
   main().catch((e) => {
     console.error('Unexpected error:', e.message);
     process.exit(1);
