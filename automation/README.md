@@ -114,12 +114,21 @@ mapping), run from the repo root with `npm run test:unit` (`node --test`, no tok
 The fetch scripts talk to the live API, so they are not unit-tested — check them by running
 them against your org.
 
-## Viewer behavior (org-level auto-detection)
+## Viewer behavior (the two CSVs together)
 
-The viewer (`../index.html`) is data-driven: when a CSV has a single distinct
-`username` (no per-member breakdown), it hides the per-member tabs (Members / By Model /
-Daily Trend), shows an Information note, and renders the Overview only. So the CSV from
-the org-totals recipe just works via `?csv=` — no special flag.
+The viewer (`../index.html`) is data-driven — it reads what a CSV carries and offers
+only the tabs that CSV can answer, so both recipes just work with no special flag.
+
+- The **org totals** CSV has a single distinct `username` and no per-member
+  breakdown, so the viewer hides the Members tab, shows an Information note, and
+  renders the Overview only: `?csv=…/ai-credit-usage.csv`.
+- The **per-user** CSV has no `net_amount`, so there is no billed amount to report.
+  The viewer hides the Overview, reports Net as not available rather than as fully
+  covered, and renders Members only.
+- Open both with `?csv=…&users_csv=…` and each tab reads the one that can answer it:
+  Overview from the org totals, Members from the per-user rows. Which CSV drives
+  which tab follows from its content, so the two parameters are interchangeable and
+  dropping the files on the page works the same way.
 
 ## Getting the CSV to viewers
 
@@ -166,6 +175,8 @@ To publish the per-user CSV as well, add the two `-users` scripts to the reposit
 them their own steps, setting the directories explicitly the way the template's steps already
 do — `USERS_RAW_DIR` for the fetch step, then `USERS_RAW_DIR`, `ORG` and `OUT_CSV` for the
 transform step. The token needs the Copilot metrics permission on top of the billing one.
+Then share both CSVs on one page:
+`<pages-url>/index.html?csv=./data/ai-credit-usage.csv&users_csv=./data/ai-credit-usage-by-user.csv`.
 Because that CSV names members, publish it only to a site the whole org may read.
 
 ## Privacy

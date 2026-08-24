@@ -43,14 +43,21 @@ Working rules that follow from these:
     because once the credit pool is exhausted a high-Gross member can be fully
     covered (the Members charts and detail table).
   - *Composition / usage pattern* by a dimension shows Gross only — per-cell Net
-    is mostly zero, so splitting it adds noise, not an answer (By Model, Daily
-    Trend, Model Share).
+    is mostly zero, so splitting it adds noise, not an answer (Model Share, the
+    daily trend by member, and usage by member and model).
 
   So gross-only and metered-aware views coexist by design. Test for a new view:
   does the answer change depending on covered-vs-metered? If yes, surface Net; if
   it's about usage composition, stay gross-only. Don't push metered everywhere
   just for symmetry. Basis is fixed per view by its question, not chosen by the
   user — the tool has no global Gross/Net mode toggle.
+- **One question per tab.** Overview answers "what did the organization spend and
+  what is it billed"; Members answers "who spent what, when, and on which model".
+  Every per-member view belongs under Members rather than getting a tab of its own,
+  and a view that would need a third question does not belong in the viewer. This
+  also keeps the tabs honest about their input: an organization-total feed has no
+  member dimension and a per-user feed has no billed amount, so each tab is driven
+  by the feed that can actually answer it.
 - **Prefer leaving stable features over marginal cleanup.** Removing something
   that works carries churn risk of its own.
 

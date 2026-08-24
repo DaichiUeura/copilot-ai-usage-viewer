@@ -74,7 +74,7 @@
 
   /* Tabs */
   .tabs { display: flex; gap: 4px; margin-bottom: 20px; flex-wrap: wrap; }
-  #dashboard.org-level #detailTabs { display: none; }
+  .tabs[hidden] { display: none; }
   .tab { padding: 7px 16px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; border: 1px solid transparent; background: transparent; color: #8b949e; transition: all 0.15s; }
   .tab.active { background: #21262d; border-color: #30363d; color: #f0f6fc; }
   .tab:hover:not(.active) { color: #c9d1d9; }
@@ -83,6 +83,8 @@
   .panel { display: none; }
   .panel.active { display: block; }
   .chart-card { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 20px; margin-bottom: 20px; }
+  .panel-caption { color: #8b949e; font-size: 0.78rem; margin: -6px 0 14px; }
+  .panel-caption:empty { display: none; }
   .chart-title { font-size: 0.9rem; font-weight: 600; color: #c9d1d9; margin-bottom: 16px; }
   .chart-wrap { position: relative; }
   .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
@@ -107,6 +109,8 @@
   .rank { color: #8b949e; font-size: 0.78rem; }
   .muted { color: #8b949e; }
   .drop-disclaimer { margin-top: 4px; }
+  .drop-error { color: #f87171; }
+  .drop-error:empty { display: none; }
   .menu-note { color: #6e7681; font-size: 0.72rem; line-height: 1.45; }
 </style>
 </head>
@@ -121,8 +125,9 @@
     <span style="font-size:2.5rem">📂</span>
     <span style="color:#8b949e;font-size:0.9rem" data-i18n="dropHint">Drop CSV file here</span>
     <button class="btn" data-i18n="dropBtn">Select file</button>
-    <input type="file" id="fileInput" accept=".csv">
+    <input type="file" id="fileInput" accept=".csv" multiple>
   </div>
+  <p class="note drop-error" id="dropError"></p>
   <p class="note" data-i18n="dropNote">CSV data is processed in-browser only. It is not uploaded.</p>
   <p class="note drop-disclaimer" data-i18n="dropDisclaimer">This view is an estimate based on the CSV you loaded. Actual billed amounts may differ.</p>
 </div>
@@ -157,11 +162,10 @@
   <div class="tabs" id="detailTabs">
     <button class="tab active" data-tab="overview" data-i18n="tabOverview" onclick="switchTab(this,'overview')">Overview</button>
     <button class="tab" data-tab="members"  data-i18n="tabMembers"  onclick="switchTab(this,'members')">Members</button>
-    <button class="tab" data-tab="model"    data-i18n="tabModel"    onclick="switchTab(this,'model')">By Model</button>
-    <button class="tab" data-tab="daily"    data-i18n="tabDaily"    onclick="switchTab(this,'daily')">Daily Trend</button>
   </div>
 
   <div id="overview" class="panel active">
+    <div class="panel-caption" id="overviewCaption"></div>
     <div class="chart-card">
       <div class="chart-title" data-i18n="ctCumulative"></div>
       <div class="chart-wrap" style="height:340px"><canvas id="chartCumulative"></canvas></div>
@@ -178,6 +182,8 @@
     </div>
   </div>
   <div id="members" class="panel">
+    <div class="panel-caption" id="membersCaption"></div>
+    <div class="panel-caption" id="membersOrgContext"></div>
     <div class="grid-2">
       <div class="chart-card">
         <div class="chart-title" data-i18n="ctMembersGross"></div>
@@ -187,26 +193,22 @@
         <div class="chart-title" data-i18n="ctMembersNet"></div>
         <div class="chart-wrap" style="height:340px">
           <canvas id="chartTotalNet"></canvas>
-          <div id="membersNetEmpty" data-i18n="membersNetEmpty"
+          <div id="membersNetEmpty"
                style="display:none; position:absolute; inset:0; align-items:center; justify-content:center; text-align:center; padding:0 24px; color:#8b949e; font-size:0.85rem;"></div>
         </div>
       </div>
     </div>
-    <div class="chart-card" style="margin-top:0">
-      <div class="chart-title" data-i18n="ctTable"></div>
-      <table id="tableMain"></table>
-    </div>
-  </div>
-  <div id="model" class="panel">
-    <div class="chart-card">
-      <div class="chart-title" data-i18n="ctModel"></div>
-      <div class="chart-wrap" style="height:420px"><canvas id="chartModel"></canvas></div>
-    </div>
-  </div>
-  <div id="daily" class="panel">
     <div class="chart-card">
       <div class="chart-title" data-i18n="ctDaily"></div>
       <div class="chart-wrap" style="height:380px"><canvas id="chartDaily"></canvas></div>
+    </div>
+    <div class="chart-card" id="memberModelCard">
+      <div class="chart-title" data-i18n="ctModel"></div>
+      <div class="chart-wrap" style="height:420px"><canvas id="chartModel"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title" data-i18n="ctTable"></div>
+      <table id="tableMain"></table>
     </div>
   </div>
 </div>
@@ -228,6 +230,7 @@ const I18N = {
     dropHint:    'Drop CSV file here',
     dropBtn:     'Select file',
     dropNote:    'CSV data is processed in-browser only. It is not uploaded.',
+    dropNoRows:  'That file has no usage rows. Check that it is an AI Usage Report CSV.',
     dropDisclaimer: 'This view is an estimate based on the CSV you loaded. Actual billed amounts may differ.',
     dashboardDisclaimer: 'This view is an estimate based on the CSV you loaded. Actual billed amounts may differ.',
     resetBtn:    '← Load another file',
@@ -239,8 +242,6 @@ const I18N = {
     // tabs
     tabOverview: 'Overview',
     tabMembers:  'Members',
-    tabModel:    'By Model',
-    tabDaily:    'Daily Trend',
     // chart titles
     ctCumulative:  'Cumulative Cost',
     ctMembersGross: 'Usage by Member (Gross)',
@@ -257,6 +258,7 @@ const I18N = {
     dsCovered:     'Covered ($)',
     dsMetered:     'Metered ($)',
     membersNetEmpty: 'No metered usage — fully covered by included usage',
+    membersNetNA:    'Net is not available in this file — it reports consumption, not what is billed',
     lblTotal:      'Total',
     lblOther:      'Other',
     // table headers + tooltips
@@ -270,6 +272,7 @@ const I18N = {
     colModel:   'Top Model',
     tipGross:   'Total GitHub AI Credits consumed at list price ($0.01/credit). Gross amount before discounts.',
     tipNet:     'Actual billed amount after included usage is applied. $0.00 = fully covered by AI credit pool.',
+    tipNetNA:   'Per-member billed amount is not in this file, which reports consumption only.',
     tipShare:   'Share of total gross usage among all members in this report.',
     tipQuota:   'AI credits used vs. the monthly quota included in your Copilot plan. Red = quota exceeded.',
     tipModel:   'The model with the highest gross AI credit consumption for this member.',
@@ -286,14 +289,19 @@ const I18N = {
     tipBadgeNet0:  'Actual billed amount. $0.00 = all usage covered by included AI credits (AI credit pool)',
     tipBadgeNetX:  'Actual billed amount including metered usage beyond included AI credits',
     tipBadgeCover: "Percentage of gross usage covered by your plan's included AI credits",
+    tipBadgeNetNA: 'This file reports consumption only. The billed amount is not in it, which is not the same as $0.00',
+    tipBadgeCoverNA: 'Needs the billed amount, which this file does not carry',
     coveredLabel:  'Covered by included usage',
     meteredLabel:  'Includes metered usage',
+    notAvailableLabel: 'Not available in this file',
+    orgUnnamed:        '(not named)',
+    capBasisBoth:      'Gross and Net',
+    capBasisGrossOnly: 'Gross only — Net not available',
+    orgContextExhausted: 'Included AI credit pool exhausted — usage from then on is billed',
     // validation
     vbWarnTitle:   'Warnings — please review',
     vbErrTitle:    'Errors detected — values may be inaccurate',
     vm: {
-      noRows:      { t: ()    => 'No data rows found',
-                     d: ()    => 'The CSV appears to be empty or header-only.' },
       missingCols: { t: p     => `Required columns not found: ${p.cols}`,
                      d: ()    => 'This may not be a GitHub Copilot AI Usage Report CSV.' },
       parseErrors: { t: p     => `${p.n} row(s) with unparseable ${p.field}`,
@@ -304,8 +312,16 @@ const I18N = {
                      d: ()    => 'May indicate refunds or adjustments. Verify totals.' },
       sumMismatch: { t: p     => `SUM mismatch: row total $${p.row} ≠ aggregated $${p.agg} (diff $${p.diff})`,
                      d: ()    => 'Rows with empty username may be excluded.' },
-      orgLevelOnly:{ t: ()    => 'Single user in this data — per-member views hidden',
-                     d: ()    => 'This CSV contains only one user, so per-member views (Members, By Model, Daily Trend) are not shown. The Overview covers all usage in the file.' },
+      feedsOrgs:   { t: p     => `The two files do not name the same organization: ${p.a} and ${p.b}`,
+                     d: ()    => 'Nothing confirms they describe one organization, so their amounts should not be read together.' },
+      filesSuperseded: { t: p => `${p.n} file(s) opened but not shown`,
+                     d: p     => `Not shown: ${p.files}. Only one file with a billed amount and one without can be open at a time.` },
+      feedsDiffer: { t: p     => `The two files disagree on ${p.n} of the ${p.days} days they both cover (up to $${p.max})`,
+                     d: ()    => 'At least one of them recorded only part of those days. Compare them only where they agree.' },
+      feedsApart:  { t: ()    => 'The two files cover no day in common',
+                     d: ()    => 'Their amounts cannot be compared. Each panel names the range it covers.' },
+      orgLevelOnly:{ t: ()    => 'No per-member breakdown — the Members tab is hidden',
+                     d: ()    => 'The data reports one entity, not individual members. Load a CSV with per-member rows to fill the Members tab.' },
     },
   },
   ja: {
@@ -315,6 +331,7 @@ const I18N = {
     dropHint:    'CSVファイルをここにドロップ',
     dropBtn:     'ファイルを選択',
     dropNote:    'CSVデータはブラウザ内のみで処理され、アップロードされません。',
+    dropNoRows:  'このファイルに利用データの行がありません。AI Usage Report の CSV か確認してください。',
     dropDisclaimer: 'この表示は、読み込んだCSVをもとにした試算です。実際の請求額とは異なる場合があります。',
     dashboardDisclaimer: 'この表示は、読み込んだCSVをもとにした試算です。実際の請求額とは異なる場合があります。',
     resetBtn:    '← 別のファイルを読む',
@@ -325,8 +342,6 @@ const I18N = {
     separator:   '〜',
     tabOverview: '概要',
     tabMembers:  'メンバー別',
-    tabModel:    'モデル別',
-    tabDaily:    '日別トレンド',
     ctCumulative:  '累積コスト',
     ctMembersGross: 'メンバー別使用量（Gross）',
     ctMembersNet:   'メンバー別課金（Net）',
@@ -342,6 +357,7 @@ const I18N = {
     dsCovered:     'Covered ($)',
     dsMetered:     'Metered ($)',
     membersNetEmpty: '従量課金（Metered usage）なし — included usage で全額カバー済み',
+    membersNetNA:    'このファイルに Net はありません — 消費量のみで請求額は含まれません',
     lblTotal:      '合計',
     lblOther:      'その他',
     colRank:    '#',
@@ -354,6 +370,7 @@ const I18N = {
     colModel:   '主なモデル',
     tipGross:   'AI クレジットの定価合計（$0.01/credit）。割引適用前の Gross 金額。',
     tipNet:     '割引後の実請求額。$0.00 = AI credit pool の included usage でカバー済み。',
+    tipNetNA:   'メンバー別の請求額はこのファイルにありません。消費量のみを記録しています。',
     tipShare:   'このレポート内の全メンバー合計に対する Gross 使用量のシェア。',
     tipQuota:   'Copilot プランに含まれる月次クォータに対する AI クレジット使用量の比率。赤 = クォータ超過。',
     tipModel:   'このメンバーで最も多く消費した AI クレジットのモデル。',
@@ -369,13 +386,18 @@ const I18N = {
     tipBadgeNet0:  '実請求額。$0.00 = すべて included AI credits（AI credit pool）でカバー済み',
     tipBadgeNetX:  '実請求額。included AI credits を超えた従量課金（metered usage）を含む',
     tipBadgeCover: 'Gross 使用量のうちプランの included AI credits でカバーされた割合',
+    tipBadgeNetNA: 'このファイルは消費量のみを記録しています。請求額は含まれていません（$0.00 とは異なります）',
+    tipBadgeCoverNA: '算出には請求額が必要ですが、このファイルには含まれていません',
     coveredLabel:  'Included usage でカバー済み',
     meteredLabel:  '従量課金（Metered usage）あり',
+    notAvailableLabel: 'このファイルには含まれません',
+    orgUnnamed:        '（記載なし）',
+    capBasisBoth:      'Gross と Net',
+    capBasisGrossOnly: 'Gross のみ — Net は含まれません',
+    orgContextExhausted: 'Included AI credit pool が枯渇 — 以降の消費は請求対象',
     vbWarnTitle:   '注意事項があります',
     vbErrTitle:    'エラーがあります — 値が不正確な可能性があります',
     vm: {
-      noRows:      { t: ()    => 'データ行が 0 件です',
-                     d: ()    => 'CSV が空か、ヘッダーのみです。' },
       missingCols: { t: p     => `必須カラムが見つかりません: ${p.cols}`,
                      d: ()    => 'AI Usage Report CSV 以外が読み込まれた可能性があります。' },
       parseErrors: { t: p     => `${p.field} を数値として読み取れない行: ${p.n} 件`,
@@ -386,8 +408,16 @@ const I18N = {
                      d: ()    => '返金・調整が含まれています。合計が意図通りか確認してください。' },
       sumMismatch: { t: p     => `SUM 不一致: 行合計 $${p.row} ≠ 集計合計 $${p.agg}（差: $${p.diff}）`,
                      d: ()    => 'ユーザー名が空の行が除外されている可能性があります。' },
-      orgLevelOnly:{ t: ()    => 'データのユーザーが1件 — メンバー別ビューは非表示',
-                     d: ()    => 'この CSV はユーザーが1件のみのため、メンバー別ビュー（メンバー別 / モデル別 / 日別トレンド）を表示しません。概要がファイル全体の利用を表します。' },
+      feedsOrgs:   { t: p     => `2 つのファイルの組織が一致しません: ${p.a} と ${p.b}`,
+                     d: ()    => '同じ組織のものだと確認できないため、金額をまとめて読まないでください。' },
+      filesSuperseded: { t: p => `開いたが表示していないファイル: ${p.n} 件`,
+                     d: p     => `対象: ${p.files}。請求額を持つファイルと持たないファイルを 1 つずつしか開けません。` },
+      feedsDiffer: { t: p     => `2 つのファイルは共通する ${p.days} 日のうち ${p.n} 日で一致しません（最大 $${p.max}）`,
+                     d: ()    => '少なくとも片方がその日を部分的にしか記録していません。一致している日だけで比べてください。' },
+      feedsApart:  { t: ()    => '2 つのファイルに共通する日がありません',
+                     d: ()    => '金額どうしを比べることはできません。対象期間は各パネルのキャプションにあります。' },
+      orgLevelOnly:{ t: ()    => 'メンバー別の内訳がありません — メンバー別タブは非表示',
+                     d: ()    => 'データはメンバー個人ではなく 1 つの主体を表しています。メンバー別の行を持つ CSV を読み込むと、メンバー別タブが表示されます。' },
     },
   },
 };
@@ -430,8 +460,9 @@ function applyLang() {
   // Dynamic content (only when data is loaded)
   if (DATA) {
     renderSubtitle();
+    renderCaptions();
     renderCostBadges();
-    renderValidation(lastValidation);
+    renderValidation();
     document.getElementById('tableMain').innerHTML = '';
     if (activeTab === 'members') {
       buildTable();
@@ -458,15 +489,21 @@ function parseCSV(text) {
 // =====================================================================
 // Aggregate
 // =====================================================================
+// Reads a numeric column, returning null when the CSV leaves it blank. A blank is
+// not a zero: it means the value is not available for that row, and a feed that
+// cannot attribute an amount writes nothing rather than claiming $0.00.
+function optionalMetric(row, key) {
+  const raw = row[key];
+  if (raw === undefined || raw === '') return null;
+  const value = parseFloat(raw);
+  return isNaN(value) ? null : value;
+}
+
+// Same reading, for columns where an absent value genuinely means no usage.
 function metricValue(row, primaryKey, fallbackKey = null) {
-  const primaryRaw = row[primaryKey];
-  const primary = parseFloat(primaryRaw);
-  if (primaryRaw !== undefined && primaryRaw !== '' && !isNaN(primary)) return primary;
-  if (!fallbackKey) return 0;
-  const fallbackRaw = row[fallbackKey];
-  const fallback = parseFloat(fallbackRaw);
-  if (fallbackRaw !== undefined && fallbackRaw !== '' && !isNaN(fallback)) return fallback;
-  return 0;
+  const primary = optionalMetric(row, primaryKey);
+  if (primary !== null) return primary;
+  return fallbackKey ? (optionalMetric(row, fallbackKey) ?? 0) : 0;
 }
 
 // Inclusive list of every UTC calendar day from start to end ("YYYY-MM-DD").
@@ -482,23 +519,23 @@ function aggregate(rows) {
   const user_total = {}, user_model = {}, user_date = {};
   const model_total = {}, date_total = {}, date_net = {};
   const user_quota = {}, user_net = {};
-  let grand_qty = 0;
+  let grand_qty = 0, net_rows = 0;
   rows.forEach(r => {
     const amt = metricValue(r, 'gross_amount');
     const qty = metricValue(r, 'quantity');
-    const net = parseFloat(r['net_amount'] || 0);
+    const net = optionalMetric(r, 'net_amount');
     const u = r['username'], m = r['model'], d = r['date'];
     if (!u || !m || !d) return;
     grand_qty += qty;
     user_total[u] = (user_total[u] || 0) + amt;
-    user_net[u]   = (user_net[u]   || 0) + net;
+    if (net !== null) { user_net[u] = (user_net[u] || 0) + net; net_rows += 1; }
     if (!user_model[u]) user_model[u] = {};
     user_model[u][m] = (user_model[u][m] || 0) + amt;
     if (!user_date[u]) user_date[u] = {};
     user_date[u][d] = (user_date[u][d] || 0) + amt;
     model_total[m] = (model_total[m] || 0) + amt;
     date_total[d]  = (date_total[d]  || 0) + amt;
-    date_net[d]    = (date_net[d]    || 0) + net;
+    if (net !== null) date_net[d] = (date_net[d] || 0) + net;
     if (r['total_monthly_quota']) user_quota[u] = parseInt(r['total_monthly_quota']);
   });
   const users = Object.keys(user_total).sort((a, b) => user_total[b] - user_total[a]);
@@ -515,7 +552,15 @@ function aggregate(rows) {
   const grand_list = Object.values(user_total).reduce((s, v) => s + v, 0);
   const grand_net  = Object.values(user_net).reduce((s, v) => s + v, 0);
   const grand_disc = grand_list - grand_net;
-  return { users, dates, models, orgs,
+  // Whether this CSV says anything at all about what is billed. Everything that
+  // shows covered-vs-metered hangs off it: with no net column there is no coverage
+  // to report, and reporting $0.00 would claim the usage was fully covered.
+  const net_available = net_rows > 0;
+  // First day usage was billed past the included AI credit pool, if it ever was.
+  const pool_exhausted = net_available
+    ? (dates.find(d => (date_net[d] || 0) > 0.001) || null)
+    : null;
+  return { users, dates, models, orgs, net_available, pool_exhausted,
            user_total, user_model, user_date, user_net, user_quota,
            model_total, date_total, date_net, grand_list, grand_net, grand_disc, grand_qty };
 }
@@ -534,19 +579,12 @@ function hasColumn(cols, key) {
 function validate(rows) {
   const issues = [];
   const CORE_REQUIRED = ['date','username','model','gross_amount'];
-  if (rows.length === 0) {
-    issues.push({ key: 'noRows', p: {}, level: 'err' });
-    return { issues, level: 'err' };
-  }
-  const cols = Object.keys(rows[0]);
+  const cols = rows.length ? Object.keys(rows[0]) : [];
   const missing = CORE_REQUIRED.filter(c => !hasColumn(cols, c));
   if (missing.length > 0)
     issues.push({ key: 'missingCols', p: { cols: missing.join(', ') }, level: 'err' });
 
-  const parseErrs = rows.filter(r => {
-    const raw = r['gross_amount'];
-    return raw === undefined || raw === '' || isNaN(parseFloat(raw));
-  });
+  const parseErrs = rows.filter(r => optionalMetric(r, 'gross_amount') === null);
   if (parseErrs.length > 0)
     issues.push({ key: 'parseErrors', p: { n: parseErrs.length, field: 'gross_amount', ex: parseErrs.slice(0,3).map(r=>`${r.date}/${r.username}`).join(', ') }, level: 'warn' });
 
@@ -568,10 +606,6 @@ function validate(rows) {
   if (diff > 0.01)
     issues.push({ key: 'sumMismatch', p: { row: rowSum.toFixed(4), agg: aggSum.toFixed(4), diff: diff.toFixed(4) }, level: 'warn' });
 
-  const distinctUsers = new Set(rows.map(r => r['username'])).size;
-  if (distinctUsers <= 1)
-    issues.push({ key: 'orgLevelOnly', p: {}, level: 'info' });
-
   const level = issues.some(i=>i.level==='err') ? 'err' : issues.some(i=>i.level==='warn') ? 'warn' : issues.some(i=>i.level==='info') ? 'info' : 'ok';
   return { issues, level, rowSum };
 }
@@ -584,7 +618,16 @@ function fmtIssue(issue) {
 // =====================================================================
 // State
 // =====================================================================
-let DATA = null, lastValidation = null, activeTab = 'overview', currentFilename = '';
+// Two CSVs can be open at once, because no single feed answers both questions: one
+// reports what the organization is billed but has no member dimension, the other
+// reports what each member consumed but carries no billed amount. Which slot a CSV
+// lands in follows from its content, so a dropped file and a URL are read the same
+// way. With one CSV open both views read it, which is how a full export behaves.
+const SLOTS = { billing: null, users: null };   // each: { data, validation, filename }
+let DATA = null;      // Overview and the cost badges
+let MEMBERS = null;   // everything under Members
+let supersededFiles = [];   // opened, then pushed out by another of the same kind
+let activeTab = 'overview';
 // Optional reference ceiling for the cumulative chart, supplied externally via the
 // ?net_limit= URL param (not derived from the CSV). Drawn against the cumulative
 // Net (metered) line. Only a finite, positive number is honored; otherwise null.
@@ -602,42 +645,95 @@ let chartResizeFrame = null;
 const dropzone  = document.getElementById('dropzone');
 const dashboard = document.getElementById('dashboard');
 
-dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
-dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
-dropzone.addEventListener('drop', e => {
+// Dropping is handled on the document, not only on the empty drop zone, so a new
+// CSV can be opened without going back to it first.
+document.addEventListener('dragover', e => {
+  e.preventDefault();
+  if (dropzone.style.display !== 'none') dropzone.classList.add('drag-over');
+});
+document.addEventListener('dragleave', e => {
+  if (e.relatedTarget === null) dropzone.classList.remove('drag-over');
+});
+document.addEventListener('drop', e => {
   e.preventDefault(); dropzone.classList.remove('drag-over');
-  const f = e.dataTransfer.files[0]; if (f) loadFile(f);
+  loadFiles(e.dataTransfer.files);
 });
 document.getElementById('fileInput').addEventListener('change', e => {
-  if (e.target.files[0]) loadFile(e.target.files[0]);
+  loadFiles(e.target.files);
 });
 
-function loadFile(file) {
-  const reader = new FileReader();
-  reader.onload = e => {
-    loadCSVText(e.target.result, file.name);
-  };
-  reader.readAsText(file, 'utf-8');
+function readFileText(file) {
+  return new Promise(resolve => {
+    const reader = new FileReader();
+    reader.onload = e => resolve({ text: e.target.result, filename: file.name });
+    reader.onerror = () => resolve(null);
+    reader.readAsText(file, 'utf-8');
+  });
 }
 
-function loadCSVText(text, filename, tab = 'overview') {
-  const rows = parseCSV(text);
-  DATA = buildDataSets(rows);
-  lastValidation = validate(rows);
-  currentFilename = filename;
+function loadFiles(files) {
+  if (!files || !files.length) return;
+  const dropError = document.getElementById('dropError');
+  Promise.all([...files].map(readFileText)).then(entries => {
+    if (loadEntries(entries)) {
+      delete dropError.dataset.i18n;
+      dropError.textContent = '';
+      return;
+    }
+    // Nothing to show, and nothing showing already: say so where the reader is.
+    if (!DATA) {
+      dropError.dataset.i18n = 'dropNoRows';
+      dropError.textContent = t('dropNoRows');
+    }
+  });
+}
+
+// Opening a CSV replaces whatever is on screen, so a drop behaves the same whether
+// the drop zone or a dashboard is showing. Files with no usage rows are skipped;
+// if none of them had any, what is on screen is left alone. Both files land before
+// anything is drawn, so opening a pair renders once.
+function loadEntries(entries, tab) {
+  const parsed = entries.filter(Boolean)
+    .map(e => ({ rows: parseCSV(e.text), filename: e.filename }))
+    .filter(e => e.rows.length);
+  if (!parsed.length) return false;
+  clearSlots();
+  supersededFiles = parsed.map(e => acceptRows(e.rows, e.filename)).filter(Boolean);
+  showDashboard(tab);
+  return true;
+}
+
+// A CSV that carries a billed amount is the billing feed; one that leaves
+// net_amount blank reports consumption only.
+function acceptRows(rows, filename) {
+  const data = buildDataSets(rows);
+  const slot = data.net_available ? 'billing' : 'users';
+  const superseded = SLOTS[slot] && SLOTS[slot].filename;
+  SLOTS[slot] = { data, validation: validate(rows), filename };
+  DATA    = SLOTS.billing?.data ?? SLOTS.users?.data;
+  MEMBERS = SLOTS.users?.data   ?? SLOTS.billing?.data;
   sortState = { col: 'total', dir: 'desc' };
-  showDashboard(filename, tab);
+  return superseded;
+}
+
+function clearSlots() {
+  SLOTS.billing = null; SLOTS.users = null;
+  DATA = null; MEMBERS = null; supersededFiles = [];
+}
+
+function loadedSlots() {
+  return [SLOTS.billing, SLOTS.users].filter(Boolean);
 }
 
 // =====================================================================
 // Dashboard rendering
 // =====================================================================
-function showDashboard(filename, tab = 'overview') {
-  const active = ['overview','members','model','daily'].includes(tab) ? tab : 'overview';
+function showDashboard(tab) {
   dropzone.style.display = 'none';
   dashboard.style.display = 'block';
-  document.getElementById('headerMeta').textContent = filename;
-  setActiveTab(active);
+  document.getElementById('headerMeta').textContent =
+    loadedSlots().map(s => s.filename).join('  ·  ');
+  setActiveTab(['overview','members'].includes(tab) ? tab : activeTab);
   rerenderDashboard();
 }
 
@@ -645,25 +741,52 @@ function rerenderDashboard() {
   Object.values(charts).forEach(c => c.destroy());
   Object.keys(charts).forEach(k => delete charts[k]);
   document.getElementById('tableMain').innerHTML = '';
-  dashboard.classList.toggle('org-level', !!DATA && DATA.users.length <= 1);
+  setActiveTab(activeTab);
   applyLang();
   buildActiveTab();
 }
 
 function renderSubtitle() {
-  const d = DATA;
-  const base = `${d.dates[0]} ${t('separator')} ${d.dates[d.dates.length-1]} (UTC)  ·  ${d.orgs.join(', ')}`;
-  document.getElementById('subtitle').textContent =
-    d.users.length <= 1 ? base : `${base}  ·  ${d.users.length} ${t('members')}`;
+  // Each panel names its own date range, because the two feeds cover different
+  // days: their histories can start apart and their newest day can differ.
+  const orgs = [...new Set(loadedSlots().flatMap(s => s.data.orgs))].join(', ');
+  const count = MEMBERS && MEMBERS.users.length > 1 ? `${MEMBERS.users.length} ${t('members')}` : '';
+  document.getElementById('subtitle').textContent = [orgs, count].filter(Boolean).join('  ·  ');
+}
+
+// Says which CSV a panel is reading, the days it actually covers, and what its
+// amounts are — so no view implies a range or a basis it does not have.
+function captionFor(slot) {
+  if (!slot) return '';
+  const { dates, net_available } = slot.data;
+  const range = dates.length ? `${dates[0]} ${t('separator')} ${dates[dates.length-1]} (UTC)` : '';
+  const basis = net_available ? t('capBasisBoth') : t('capBasisGrossOnly');
+  return [slot.filename, range, basis].filter(Boolean).join('  ·  ');
+}
+
+function renderCaptions() {
+  const billing = SLOTS.billing, users = SLOTS.users;
+  document.getElementById('overviewCaption').textContent = captionFor(billing ?? users);
+  document.getElementById('membersCaption').textContent = captionFor(users ?? billing);
+  // Gross alone says nothing about cost until you know the pool ran out. That
+  // comes from the billing feed, so it shows only when one is open.
+  const exhausted = billing && billing.data.pool_exhausted;
+  document.getElementById('membersOrgContext').textContent =
+    exhausted ? `${t('orgContextExhausted')} (${exhausted})` : '';
 }
 
 function renderCostBadges() {
-  const { grand_list, grand_net, grand_disc } = DATA;
-  const coverPct = grand_list > 0 ? (grand_disc / grand_list * 100).toFixed(1) : '0.0';
+  const { grand_list, grand_net, grand_disc, net_available } = DATA;
   const hasMetered = grand_net > 0.001;
-  const netColor = hasMetered ? '#d29922' : '#3fb950';
-  const netTip   = hasMetered ? t('tipBadgeNetX') : t('tipBadgeNet0');
-  const netSub   = hasMetered ? t('meteredLabel') : t('coveredLabel');
+  // Without a net column there is no billed amount to show. The Net and Covered
+  // stats keep their place and read "—", so the gap is visible as a gap rather
+  // than as $0.00 fully covered.
+  const netValue = net_available ? `$${grand_net.toFixed(2)}` : '—';
+  const netColor = net_available ? (hasMetered ? '#d29922' : '#3fb950') : '#8b949e';
+  const netTip   = net_available ? (hasMetered ? t('tipBadgeNetX') : t('tipBadgeNet0')) : t('tipBadgeNetNA');
+  const netSub   = net_available ? (hasMetered ? t('meteredLabel') : t('coveredLabel')) : t('notAvailableLabel');
+  const coverValue = net_available ? `${(grand_list > 0 ? grand_disc / grand_list * 100 : 0).toFixed(1)}%` : '—';
+  const coverTip   = net_available ? t('tipBadgeCover') : t('tipBadgeCoverNA');
   document.getElementById('costBadges').innerHTML = `
     <div class="cost-bar">
       <div class="cost-stat" title="${t('tipBadgeGross')}">
@@ -672,48 +795,100 @@ function renderCostBadges() {
       </div>
       <div class="cost-stat" title="${netTip}">
         <span class="cost-stat-label">${t('badgeNet')}</span>
-        <span class="cost-stat-value" style="color:${netColor}">$${grand_net.toFixed(2)} <span class="cost-stat-sub">${netSub}</span></span>
+        <span class="cost-stat-value" style="color:${netColor}">${netValue} <span class="cost-stat-sub">${netSub}</span></span>
       </div>
-      <div class="cost-stat" title="${t('tipBadgeCover')}">
+      <div class="cost-stat" title="${coverTip}">
         <span class="cost-stat-label">${t('badgeCovered')}</span>
-        <span class="cost-stat-value" style="color:#60a5fa">${coverPct}%</span>
+        <span class="cost-stat-value" style="color:${net_available ? '#60a5fa' : '#8b949e'}">${coverValue}</span>
       </div>
     </div>`;
 }
 
-function renderValidation(v) {
-  const el = document.getElementById('validationBanner');
-  if (v.level === 'ok') {
-    el.innerHTML = '';
-    return;
-  }
+// Two files covering the same day should report the same spend that day. Where
+// they do not, the totals a reader compares across tabs will not reconcile, and
+// the reason is worth naming rather than leaving them to notice the gap.
+function crossFeedIssue() {
+  const a = SLOTS.billing?.data, b = SLOTS.users?.data;
+  if (!a || !b) return null;
+  // Two organizations on one screen have nothing to say to each other, and every
+  // comparison below would be meaningless, so this comes first. A file that names
+  // none cannot be shown to be the same one, and reads the same way on screen: the
+  // subtitle would present the other file's name as covering both.
+  const orgsA = [...a.orgs].sort().join(', '), orgsB = [...b.orgs].sort().join(', ');
+  if (orgsA !== orgsB)
+    return { key: 'feedsOrgs', level: 'warn',
+             p: { a: orgsA || t('orgUnnamed'), b: orgsB || t('orgUnnamed') } };
+  if (!a.dates.length || !b.dates.length) return null;
+  // Each file's dates run unbroken from its first row to its last, so a day inside
+  // that window with no rows is a real zero. Compare where the windows overlap.
+  const from = a.dates[0] > b.dates[0] ? a.dates[0] : b.dates[0];
+  const last = (d) => d.dates[d.dates.length - 1];
+  const to = last(a) < last(b) ? last(a) : last(b);
+  const shared = a.dates.filter(d => d >= from && d <= to);
+  if (!shared.length) return { key: 'feedsApart', p: {}, level: 'info' };
+  let n = 0, max = 0;
+  shared.forEach(d => {
+    const gap = Math.abs((a.date_total[d] || 0) - (b.date_total[d] || 0));
+    if (gap > 0.01) { n += 1; max = Math.max(max, gap); }
+  });
+  return n
+    ? { key: 'feedsDiffer', p: { n, days: shared.length, max: max.toFixed(2) }, level: 'warn' }
+    : null;
+}
 
-  // info-only: a quiet note (summary inline, detail revealed on click) rather
-  // than the prominent banner reserved for warn/err data-quality alerts.
-  if (v.level === 'info') {
-    el.innerHTML = v.issues.filter(i => i.level === 'info').map(i => {
-      const { text, detail } = fmtIssue(i);
-      const head = `<div class="vb-note-head"${detail ? ' onclick="this.parentElement.classList.toggle(\'open\')"' : ''}><span>ⓘ</span><span>${escapeHTML(text)}</span>${detail ? '<span class="vb-note-chevron">⌄</span>' : ''}</div>`;
-      return `<div class="vb-note">${head}${detail ? `<div class="vb-note-detail">${escapeHTML(detail)}</div>` : ''}</div>`;
-    }).join('');
-    return;
-  }
+// Facts about the dashboard as a whole rather than about one file: which tabs the
+// data can answer, and whether two files reconcile with each other.
+function dashboardValidation() {
+  const issues = [];
+  if (DATA && !availableTabs().members) issues.push({ key: 'orgLevelOnly', p: {}, level: 'info' });
+  if (supersededFiles.length)
+    issues.push({ key: 'filesSuperseded',
+                  p: { n: supersededFiles.length, files: supersededFiles.join(', ') }, level: 'warn' });
+  const cross = crossFeedIssue();
+  if (cross) issues.push(cross);
+  const level = issues.some(i => i.level === 'warn') ? 'warn'
+              : issues.some(i => i.level === 'info') ? 'info' : 'ok';
+  return { issues, level };
+}
 
-  {
-    const titleKey = v.level === 'err' ? 'vbErrTitle' : 'vbWarnTitle';
-    const iconMap  = { err:'×', warn:'!', info:'·' };
-    const items = v.issues.map(i => {
-      const { text, detail } = fmtIssue(i);
-      return `<div class="vb-item"><span class="vb-icon">${iconMap[i.level]}</span><div><div class="vb-text">${escapeHTML(text)}</div><div class="vb-detail-msg">${escapeHTML(detail)}</div></div></div>`;
-    }).join('');
-    el.innerHTML = `<div class="vb-full ${v.level}">
-      <div class="vb-header" onclick="this.nextElementSibling.classList.toggle('open');this.querySelector('.vb-chevron').style.transform=this.nextElementSibling.classList.contains('open')?'rotate(180deg)':''">
-        <span>${t(titleKey)}</span>
-        <span class="vb-chevron" style="transform:rotate(180deg)">▼</span>
-      </div>
-      <div class="vb-body open">${items}</div>
-    </div>`;
-  }
+function renderValidation() {
+  const slots = loadedSlots();
+  // With two CSVs open a data-quality issue belongs to one of them, so each
+  // per-file block is named.
+  const blocks = [validationHTML(dashboardValidation(), null)];
+  slots.forEach(slot =>
+    blocks.push(validationHTML(slot.validation, slots.length > 1 ? slot.filename : null)));
+  document.getElementById('validationBanner').innerHTML = blocks.join('');
+}
+
+// A quiet note (summary inline, detail revealed on click) rather than the
+// prominent banner reserved for warn/err data-quality alerts.
+function noteHTML(issues, label) {
+  return issues.map(i => {
+    const { text, detail } = fmtIssue(i);
+    const head = `<div class="vb-note-head"${detail ? ' onclick="this.parentElement.classList.toggle(\'open\')"' : ''}><span>ⓘ</span><span>${label}${escapeHTML(text)}</span>${detail ? '<span class="vb-note-chevron">⌄</span>' : ''}</div>`;
+    return `<div class="vb-note">${head}${detail ? `<div class="vb-note-detail">${escapeHTML(detail)}</div>` : ''}</div>`;
+  }).join('');
+}
+
+function validationHTML(v, filename) {
+  const label = filename ? `${escapeHTML(filename)}: ` : '';
+  if (v.level === 'ok') return '';
+  if (v.level === 'info') return noteHTML(v.issues.filter(i => i.level === 'info'), label);
+
+  const titleKey = v.level === 'err' ? 'vbErrTitle' : 'vbWarnTitle';
+  const iconMap  = { err:'×', warn:'!', info:'·' };
+  const items = v.issues.map(i => {
+    const { text, detail } = fmtIssue(i);
+    return `<div class="vb-item"><span class="vb-icon">${iconMap[i.level]}</span><div><div class="vb-text">${escapeHTML(text)}</div><div class="vb-detail-msg">${escapeHTML(detail)}</div></div></div>`;
+  }).join('');
+  return `<div class="vb-full ${v.level}">
+    <div class="vb-header" onclick="this.nextElementSibling.classList.toggle('open');this.querySelector('.vb-chevron').style.transform=this.nextElementSibling.classList.contains('open')?'rotate(180deg)':''">
+      <span>${label}${t(titleKey)}</span>
+      <span class="vb-chevron" style="transform:rotate(180deg)">▼</span>
+    </div>
+    <div class="vb-body open">${items}</div>
+  </div>`;
 }
 
 function resetView() {
@@ -721,7 +896,8 @@ function resetView() {
   dashboard.style.display = 'none';
   dropzone.style.display  = 'flex';
   document.getElementById('fileInput').value = '';
-  DATA = null; lastValidation = null; currentFilename = ''; activeTab = 'overview';
+  clearSlots();
+  activeTab = 'overview';
 }
 
 function toggleHeaderMenu(event) {
@@ -759,19 +935,40 @@ function switchTab(btn, name) {
   buildActiveTab();
 }
 
+// A tab is offered only when the loaded data can answer its question. Overview
+// reports what the organization is billed, so it needs a CSV that carries net.
+// Members needs a member dimension: a CSV without net reports per-user
+// consumption and always has one, while a billing CSV with a single username is
+// an organization total.
+function availableTabs() {
+  return {
+    overview: !!DATA && DATA.net_available,
+    members: !!MEMBERS && (!MEMBERS.net_available || MEMBERS.users.length > 1),
+  };
+}
+
 function setActiveTab(name) {
-  let active = ['overview','members','model','daily'].includes(name) ? name : 'overview';
-  if (DATA && DATA.users.length <= 1) active = 'overview'; // org-level: only Overview is meaningful
+  const available = availableTabs();
+  const active = available[name] ? name : (available.overview ? 'overview' : 'members');
   activeTab = active;
-  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === active));
+  document.querySelectorAll('.tab').forEach(t => {
+    t.hidden = !available[t.dataset.tab];
+    t.classList.toggle('active', t.dataset.tab === active);
+  });
+  // Nothing to switch between when only one view has an answer.
+  document.getElementById('detailTabs').hidden =
+    Object.values(available).filter(Boolean).length < 2;
   document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === active));
 }
 
 function buildActiveTab() {
   if (activeTab === 'overview' && !charts.cumulative) buildOrg();
-  if (activeTab === 'members') { if (!charts.total) buildMembers(); buildTable(); }
-  if (activeTab === 'model' && !charts.model) buildModel();
-  if (activeTab === 'daily' && !charts.daily) buildDaily();
+  if (activeTab === 'members') {
+    if (!charts.total) buildMembers();
+    if (!charts.daily) buildDaily();
+    if (!charts.model) buildModel();
+    buildTable();
+  }
 }
 
 function scheduleChartResize() {
@@ -825,32 +1022,42 @@ function memberBarChart(canvasId, labels, data, color, label) {
 // answer different questions — total consumption vs. who drives the bill. The Net
 // chart lists only members with metered usage; with none, it shows a caption.
 function buildMembers() {
-  charts.total = memberBarChart('chartTotal', DATA.users,
-    DATA.users.map(u => +DATA.user_total[u].toFixed(2)), '#58a6ff', t('dsGross'));
+  charts.total = memberBarChart('chartTotal', MEMBERS.users,
+    MEMBERS.users.map(u => +MEMBERS.user_total[u].toFixed(2)), '#58a6ff', t('dsGross'));
 
   const canvas = document.getElementById('chartTotalNet');
   const empty  = document.getElementById('membersNetEmpty');
-  const netUsers = DATA.users.filter(u => (DATA.user_net[u] || 0) > 0.001)
-                             .sort((a, b) => DATA.user_net[b] - DATA.user_net[a]);
-  if (DATA.grand_net > 0.001 && netUsers.length) {
+  const netUsers = MEMBERS.users.filter(u => (MEMBERS.user_net[u] || 0) > 0.001)
+                                .sort((a, b) => MEMBERS.user_net[b] - MEMBERS.user_net[a]);
+  if (MEMBERS.net_available && MEMBERS.grand_net > 0.001 && netUsers.length) {
     canvas.style.display = ''; empty.style.display = 'none';
     charts.totalNet = memberBarChart('chartTotalNet', netUsers,
-      netUsers.map(u => +DATA.user_net[u].toFixed(2)), '#d29922', t('dsNet'));
+      netUsers.map(u => +MEMBERS.user_net[u].toFixed(2)), '#d29922', t('dsNet'));
   } else {
     canvas.style.display = 'none'; empty.style.display = 'flex';
+    // "Nothing was metered" and "this file has no billing" are different answers.
+    empty.dataset.i18n = MEMBERS.net_available ? 'membersNetEmpty' : 'membersNetNA';
+    empty.textContent = t(empty.dataset.i18n);
   }
 }
 
 function buildModel() {
+  // Splitting each member's spend by model needs both axes in one CSV. A feed
+  // that reports per-user consumption collapses model to a single label, and one
+  // that reports organization totals collapses username, so the chart has
+  // something to say only for an export that carries both.
+  const hasSplit = MEMBERS.models.length > 1 && MEMBERS.users.length > 1;
+  document.getElementById('memberModelCard').style.display = hasSplit ? '' : 'none';
+  if (!hasSplit) return;
   const ctx = document.getElementById('chartModel').getContext('2d');
-  const usedModels = DATA.models.filter(m => DATA.users.some(u => (DATA.user_model[u][m]||0) > 0));
+  const usedModels = MEMBERS.models.filter(m => MEMBERS.users.some(u => (MEMBERS.user_model[u][m]||0) > 0));
   const mc = {}; usedModels.forEach((m,i) => mc[m] = PALETTE[i%PALETTE.length]);
   charts.model = new Chart(ctx, {
     type: 'bar',
     data: {
-      labels: DATA.users,
+      labels: MEMBERS.users,
       datasets: usedModels.map(m => ({
-        label: m, data: DATA.users.map(u => +((DATA.user_model[u][m]||0).toFixed(2))),
+        label: m, data: MEMBERS.users.map(u => +((MEMBERS.user_model[u][m]||0).toFixed(2))),
         backgroundColor: mc[m], borderRadius: 2, borderSkipped: false,
       }))
     },
@@ -868,24 +1075,27 @@ function buildModel() {
   });
 }
 
-// Compact M/D tick label for the shared date axis (no leading zeros), so the
-// month stays visible on every tick as the date range grows.
-function dateAxisTick(value, index) {
-  const d = DATA.dates[index];
-  if (!d) return value;
-  const [, m, day] = d.split('-');
-  return `${+m}/${+day}`;
+// Compact M/D tick label for a date axis (no leading zeros), so the month stays
+// visible on every tick as the date range grows. Takes the dates it labels,
+// because the two feeds cover different days.
+function dateAxisTick(dates) {
+  return (value, index) => {
+    const d = dates[index];
+    if (!d) return value;
+    const [, m, day] = d.split('-');
+    return `${+m}/${+day}`;
+  };
 }
 
 function buildDaily() {
   const ctx = document.getElementById('chartDaily').getContext('2d');
-  const top8 = DATA.users.slice(0,8);
+  const top8 = MEMBERS.users.slice(0,8);
   charts.daily = new Chart(ctx, {
     type: 'line',
     data: {
-      labels: DATA.dates.map(d => d.slice(5)),
+      labels: MEMBERS.dates.map(d => d.slice(5)),
       datasets: top8.map((u,i) => ({
-        label: u, data: DATA.dates.map(d => +((DATA.user_date[u]?.[d]||0).toFixed(2))),
+        label: u, data: MEMBERS.dates.map(d => +((MEMBERS.user_date[u]?.[d]||0).toFixed(2))),
         borderColor: PALETTE[i], backgroundColor: PALETTE[i]+'20',
         tension: 0.3, pointRadius: 5, pointHoverRadius: 7, fill: false,
       }))
@@ -896,7 +1106,7 @@ function buildDaily() {
         legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
         tooltip: { callbacks: { label: c => ` ${c.dataset.label}: $${c.raw.toFixed(2)}` } }
       },
-      scales: { y: { grid: { color: '#21262d' }, ticks: { callback: v=>`$${v}` } }, x: { grid: { color: '#21262d' }, ticks: { autoSkip: false, maxRotation: 90, minRotation: 0, callback: dateAxisTick } } }
+      scales: { y: { grid: { color: '#21262d' }, ticks: { callback: v=>`$${v}` } }, x: { grid: { color: '#21262d' }, ticks: { autoSkip: false, maxRotation: 90, minRotation: 0, callback: dateAxisTick(MEMBERS.dates) } } }
     }
   });
 }
@@ -904,7 +1114,7 @@ function buildDaily() {
 function buildOrg() {
   const dateLabels = DATA.dates.map(d => d.slice(5));
   const meteredSeriesLabel = t('dsMetered');
-  const poolExhaustionDate = DATA.dates.find(d => (DATA.date_net[d] || 0) > 0.001) || null;
+  const poolExhaustionDate = DATA.pool_exhausted;
 
   // Inline plugin: vertical dashed line at pool-exhaustion date on time-series charts.
   // Drawn on top of the datasets so the line keeps full contrast over both the
@@ -1052,7 +1262,7 @@ function buildOrg() {
       scales: {
         y: { grid: { color: '#21262d' }, ticks: { callback: v=>`$${v}` }, beginAtZero: true,
              ...(reportLimit != null ? { suggestedMax: reportLimit * 1.05 } : {}) },
-        x: { grid: { color: '#21262d' }, ticks: { autoSkip: false, maxRotation: 90, minRotation: 0, callback: dateAxisTick } }
+        x: { grid: { color: '#21262d' }, ticks: { autoSkip: false, maxRotation: 90, minRotation: 0, callback: dateAxisTick(DATA.dates) } }
       }
     },
     plugins: reportLimit != null ? [exhaustionLinePlugin, limitLinePlugin] : [exhaustionLinePlugin]
@@ -1129,7 +1339,7 @@ function buildOrg() {
       },
       scales: {
         y: { stacked: true, grid: { color: '#21262d' }, ticks: { callback: v=>`$${v}` } },
-        x: { stacked: true, grid: { display: false }, ticks: { autoSkip: false, maxRotation: 90, minRotation: 0, callback: dateAxisTick } }
+        x: { stacked: true, grid: { display: false }, ticks: { autoSkip: false, maxRotation: 90, minRotation: 0, callback: dateAxisTick(DATA.dates) } }
       }
     },
     plugins: [exhaustionLinePlugin]
@@ -1143,25 +1353,25 @@ const SORT_COLS = ['rank','user','total','net','share','quota','model'];
 
 function sortedUsers() {
   const { col, dir } = sortState;
-  const users = [...DATA.users]; // copy
+  const users = [...MEMBERS.users]; // copy
   const mul = dir === 'asc' ? 1 : -1;
   users.sort((a, b) => {
     let va, vb;
     if (col === 'user')  { va = a.toLowerCase(); vb = b.toLowerCase(); return mul*(va<vb?-1:va>vb?1:0); }
-    if (col === 'total') { va = DATA.user_total[a]; vb = DATA.user_total[b]; }
-    else if (col === 'net')   { va = DATA.user_net[a]||0;   vb = DATA.user_net[b]||0; }
-    else if (col === 'share') { va = DATA.user_total[a]; vb = DATA.user_total[b]; } // same as total
+    if (col === 'total') { va = MEMBERS.user_total[a]; vb = MEMBERS.user_total[b]; }
+    else if (col === 'net')   { va = MEMBERS.user_net[a]||0;   vb = MEMBERS.user_net[b]||0; }
+    else if (col === 'share') { va = MEMBERS.user_total[a]; vb = MEMBERS.user_total[b]; } // same as total
     else if (col === 'quota') {
-      const qa = DATA.user_quota[a]||1, qb = DATA.user_quota[b]||1;
-      va = (DATA.user_total[a]/0.01)/qa; vb = (DATA.user_total[b]/0.01)/qb;
+      const qa = MEMBERS.user_quota[a]||1, qb = MEMBERS.user_quota[b]||1;
+      va = (MEMBERS.user_total[a]/0.01)/qa; vb = (MEMBERS.user_total[b]/0.01)/qb;
     }
     else if (col === 'model') {
-      const ta = Object.entries(DATA.user_model[a]).sort((x,y)=>y[1]-x[1])[0];
-      const tb = Object.entries(DATA.user_model[b]).sort((x,y)=>y[1]-x[1])[0];
+      const ta = Object.entries(MEMBERS.user_model[a]).sort((x,y)=>y[1]-x[1])[0];
+      const tb = Object.entries(MEMBERS.user_model[b]).sort((x,y)=>y[1]-x[1])[0];
       va = ta?ta[0]:''; vb = tb?tb[0]:'';
       return mul*(va<vb?-1:va>vb?1:0);
     }
-    else { va = DATA.user_total[a]; vb = DATA.user_total[b]; }
+    else { va = MEMBERS.user_total[a]; vb = MEMBERS.user_total[b]; }
     return mul*(va-vb); // desc(mul=-1): -(va-vb)=vb-va → higher first
   });
   return users;
@@ -1169,8 +1379,11 @@ function sortedUsers() {
 
 function buildTable() {
   const tbl = document.getElementById('tableMain');
-  const hasQ = Object.keys(DATA.user_quota).length > 0;
-  const maxVal = Math.max(...Object.values(DATA.user_total));
+  const hasQ = Object.keys(MEMBERS.user_quota).length > 0;
+  const hasNet = MEMBERS.net_available;
+  // With one model label for everyone, a top-model column repeats it on every row.
+  const hasModels = MEMBERS.models.length > 1;
+  const maxVal = Math.max(...Object.values(MEMBERS.user_total));
 
   function thHTML(colKey, labelKey, tipKey, extraStyle='') {
     const isActive = sortState.col === colKey;
@@ -1184,24 +1397,25 @@ function buildTable() {
     <th style="cursor:default">${t('colRank')}</th>
     ${thHTML('user','colUser','colUser')}
     ${thHTML('total','colGross','tipGross')}
-    ${thHTML('net','colNet','tipNet')}
+    ${hasNet ? thHTML('net','colNet','tipNet')
+             : `<th style="cursor:default" title="${t('tipNetNA')}">${t('colNet')}</th>`}
     ${thHTML('share','colShare','tipShare')}
     ${hasQ ? thHTML('quota','colQuota','tipQuota') : ''}
-    ${thHTML('model','colModel','tipModel')}
+    ${hasModels ? thHTML('model','colModel','tipModel') : ''}
   </tr>`;
 
   const users = sortedUsers();
   users.forEach((u, i) => {
-    const total   = DATA.user_total[u];
-    const net     = DATA.user_net[u] || 0;
+    const total   = MEMBERS.user_total[u];
+    const net     = MEMBERS.user_net[u] || 0;
     const sharePct = (total / maxVal * 100).toFixed(1);
-    const color   = PALETTE[DATA.users.indexOf(u) % PALETTE.length];
-    const topModel = Object.entries(DATA.user_model[u]).sort((a,b)=>b[1]-a[1])[0];
-    const origRank = DATA.users.indexOf(u) + 1;
+    const color   = PALETTE[MEMBERS.users.indexOf(u) % PALETTE.length];
+    const topModel = Object.entries(MEMBERS.user_model[u]).sort((a,b)=>b[1]-a[1])[0];
+    const origRank = MEMBERS.users.indexOf(u) + 1;
 
     let quotaCell = '';
     if (hasQ) {
-      const quota = DATA.user_quota[u];
+      const quota = MEMBERS.user_quota[u];
       if (quota) {
         const usedCr = total / 0.01;
         const qpct   = usedCr / quota * 100;
@@ -1221,13 +1435,14 @@ function buildTable() {
       <td class="rank">${origRank}</td>
       <td>${escapeHTML(u)}</td>
       <td class="num">$${total.toFixed(2)}</td>
-      <td class="num" style="color:${net>0.001?'#d29922':'#3fb950'}">$${net.toFixed(2)}</td>
+      ${hasNet ? `<td class="num" style="color:${net>0.001?'#d29922':'#3fb950'}">$${net.toFixed(2)}</td>`
+               : '<td class="num" style="color:#8b949e">—</td>'}
       <td><div class="bar-inline">
         <div class="bar-bg"><div class="bar-fill" style="width:${sharePct}%;background:${color}"></div></div>
         <span class="num" style="width:42px;text-align:right;font-size:0.8rem;color:#8b949e">${sharePct}%</span>
       </div></td>
       ${quotaCell}
-      <td style="font-size:0.8rem;color:#8b949e">${escapeHTML(topModel?topModel[0]:'—')}</td>
+      ${hasModels ? `<td style="font-size:0.8rem;color:#8b949e">${escapeHTML(topModel?topModel[0]:'—')}</td>` : ''}
     </tr>`;
   });
 }
@@ -1259,22 +1474,30 @@ function csvURLFromQuery(value) {
   }
 }
 
-async function loadCSVFromQuery() {
-  const params = new URLSearchParams(window.location.search);
-  const csvURL = csvURLFromQuery(params.get('csv'));
-  if (!csvURL) return;
-  const tab = params.get('tab') || 'overview';
+async function fetchCSV(url) {
   try {
     // same-origin sends the session cookie (needed for access-controlled hosting like
     // private GitHub Pages); cross-origin requests still send no credentials.
-    const res = await fetch(csvURL, { credentials: 'same-origin', referrerPolicy: 'no-referrer' });
-    if (!res.ok) return;
+    const res = await fetch(url, { credentials: 'same-origin', referrerPolicy: 'no-referrer' });
+    if (!res.ok) return null;
     const length = Number(res.headers.get('content-length') || 0);
-    if (length > REMOTE_CSV_MAX_BYTES) return;
+    if (length > REMOTE_CSV_MAX_BYTES) return null;
     const text = await res.text();
-    if (text.length > REMOTE_CSV_MAX_BYTES) return;
-    loadCSVText(text, csvURL.pathname.split('/').pop() || csvURL.hostname, tab);
-  } catch (e) { console.error('Failed to load CSV from URL:', e); }
+    if (text.length > REMOTE_CSV_MAX_BYTES) return null;
+    return { text, filename: url.pathname.split('/').pop() || url.hostname };
+  } catch (e) {
+    console.error('Failed to load CSV from URL:', e);
+    return null;
+  }
+}
+
+async function loadCSVFromQuery() {
+  const params = new URLSearchParams(window.location.search);
+  const urls = ['csv', 'users_csv']
+    .map(name => csvURLFromQuery(params.get(name)))
+    .filter(Boolean);
+  if (!urls.length) return;
+  loadEntries(await Promise.all(urls.map(fetchCSV)), params.get('tab') || 'overview');
 }
 loadCSVFromQuery();
 </script>

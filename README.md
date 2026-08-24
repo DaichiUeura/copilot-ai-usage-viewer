@@ -31,6 +31,9 @@ https://daichiueura.github.io/copilot-ai-usage-viewer/?csv=https://example.com/a
 
 The resolved URL must be HTTP(S), and CSV files are limited to 10 MB.
 
+A second CSV can be opened alongside the first with `users_csv=` — see
+[Automation](#automation-optional).
+
 ### Mark a usage limit
 
 Use `net_limit=` to draw a horizontal reference line on the Overview cumulative
@@ -44,12 +47,11 @@ https://daichiueura.github.io/copilot-ai-usage-viewer/?csv=reports/ai-usage-repo
 ## Views
 
 - **Overview** — cumulative spend, daily total, model share; metered billing overlay when applicable
-- **Members** — per-member bar chart and sortable detail table
-- **By Model** — stacked usage by member and model
-- **Daily Trend** — day-by-day usage for top members
+- **Members** — per-member ranking by Gross and by Net, day-by-day usage for the top
+  members, usage by member and model, and a sortable detail table
 
-When a CSV has no per-member breakdown (a single org-level entity), the viewer
-shows the Overview only and hides the per-member tabs, noting why.
+A tab is offered only when the loaded CSV can answer it, and the viewer notes why
+when one is missing. A full export answers both.
 
 ## How usage is interpreted
 
@@ -78,6 +80,23 @@ that rebuild the data from the API and write CSVs this viewer can open. There ar
 Run them on demand or on a schedule (e.g. GitHub Actions), then host the CSV for your team.
 See [automation/README.md](automation/README.md) for the scripts, tokens, and what each CSV
 does and does not carry.
+
+### Open both CSVs together
+
+Neither recipe answers every question, so each one alone shows only the tabs it can
+fill: the organization totals have no member dimension and show the Overview only,
+while the per-user rows carry no billed amount and show Members only, reporting Net
+as not available rather than as fully covered. Add `users_csv=` to open both, and
+each tab reads the one that can answer it:
+
+```text
+https://daichiueura.github.io/copilot-ai-usage-viewer/?csv=reports/ai-usage.csv&users_csv=reports/ai-usage-by-user.csv
+```
+
+Which CSV drives which tab follows from its content, not from the parameter name, so
+dropping both files on the page works the same way. Each panel names the file it is
+reading, the days that file covers, and whether its amounts include Net — the two
+feeds have independent timelines, and neither is trimmed to match the other.
 
 ## Testing
 

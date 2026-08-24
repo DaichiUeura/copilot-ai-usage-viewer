@@ -39,6 +39,23 @@ The viewer aggregates usage from the standard billing columns:
 - `net_amount` / `discount_amount` — used to derive the metered (overage) vs.
   covered split
 
+### A blank `net_amount` is not zero
+
+A CSV may carry usage it cannot attribute a billed amount to, and leaves
+`net_amount` and `discount_amount` blank on those rows. The export from GitHub
+billing always fills them in; a CSV built from the Copilot usage metrics reports
+cannot, because no API attributes a billed amount to an individual member. Blank means **not
+available**; it does not mean the usage was fully covered by included AI credits.
+The two look alike in a total — both add nothing — but they answer opposite
+questions, and reading a blank as `0` reports the usage as billed at nothing.
+
+So the viewer treats them separately. A CSV where no row carries a numeric
+`net_amount` has no billed amount to report: the Net and Covered stats read "—",
+the per-member Net ranking and detail column say the value is not available
+rather than fully covered, and the Overview — which answers what the organization
+is billed — is not offered at all. A `net_amount` of `0` stays a real zero and
+still reads as covered.
+
 ## Field summary
 
 The viewer may use the following columns when they are present:
@@ -52,8 +69,8 @@ The viewer may use the following columns when they are present:
 | `model` | Model associated with the usage row |
 | `quantity` | Billed AI credit quantity |
 | `gross_amount` | Gross amount before discounts |
-| `discount_amount` | Discount or included usage coverage |
-| `net_amount` | Billable amount after discounts (metered/overage) |
+| `discount_amount` | Discount or included usage coverage; blank means not available |
+| `net_amount` | Billable amount after discounts (metered/overage); blank means not available |
 | `unit_type` | Unit basis for the row |
 | `organization` | Organization associated with the row |
 | `cost_center_name` | Optional cost center label |
