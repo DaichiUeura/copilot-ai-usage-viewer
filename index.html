@@ -1478,7 +1478,13 @@ async function fetchCSV(url) {
   try {
     // same-origin sends the session cookie (needed for access-controlled hosting like
     // private GitHub Pages); cross-origin requests still send no credentials.
-    const res = await fetch(url, { credentials: 'same-origin', referrerPolicy: 'no-referrer' });
+    // no-cache keeps the cached copy but revalidates it before use, so a CSV republished
+    // at the same URL shows up on an ordinary reload.
+    const res = await fetch(url, {
+      cache: 'no-cache',
+      credentials: 'same-origin',
+      referrerPolicy: 'no-referrer',
+    });
     if (!res.ok) return null;
     const length = Number(res.headers.get('content-length') || 0);
     if (length > REMOTE_CSV_MAX_BYTES) return null;
