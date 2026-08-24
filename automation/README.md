@@ -33,8 +33,9 @@ and the transform script turns that into a CSV. Re-running a transform never cal
 - **`fetch.mjs`** — read the organization's daily AI credit usage and save the raw JSON.
   Never prints the token or response body; only `YYYY-MM-DD: 200 OK (N items)`.
   - env: `AI_USAGE_PAT`, `ORG` (required); `YEAR`, `MONTH` (optional backfill); `RAW_DIR`.
-  - range: the month that yesterday (UTC) belongs to, days 1..yesterday (so the 1st of a
-    month shows the just-completed previous month). Output: `RAW_DIR/*.json` (default `./out/raw`).
+  - range: the current month (UTC), days 1..today — today is partial, since the API
+    reports it as it accumulates. On the 1st of a month the just-completed previous month
+    is fetched in full instead. Output: `RAW_DIR/*.json` (default `./out/raw`).
 - **`transform.mjs`** — convert the raw JSON into one CSV with the **same schema as the
   manual GitHub export** (minus the deprecated `aic_*` columns). No token needed.
   - env: `RAW_DIR` (default `./out/raw`), `OUT_CSV`. `organization` comes from
@@ -110,9 +111,9 @@ logged. It is advisory and never fails the run.
 ## Tests
 
 `transform.mjs` and `transform-users.mjs` have tests in `tests/` (raw JSON fixtures + the
-mapping), run from the repo root with `npm run test:unit` (`node --test`, no token needed).
-The fetch scripts talk to the live API, so they are not unit-tested — check them by running
-them against your org.
+mapping), as does the day range `fetch.mjs` resolves. Run them from the repo root with
+`npm run test:unit` (`node --test`, no token needed). Everything that talks to the live API
+is not unit-tested — check those paths by running the scripts against your org.
 
 ## Viewer behavior (the two CSVs together)
 

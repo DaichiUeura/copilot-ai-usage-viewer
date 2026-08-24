@@ -12,11 +12,13 @@
 //   ORG          (required) target organization login
 //   YEAR, MONTH  (optional) backfill a specific month; defaults to the month of
 //                "yesterday" (UTC). A past month is fetched in full; the current
-//                month is fetched from day 1 to yesterday.
+//                month is fetched from day 1 to today.
 //   RAW_DIR      (optional) where to save raw JSON; default "./out/raw"
 
 import fs from 'node:fs/promises';
+import { realpathSync } from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 const API_VERSION = '2022-11-28';
 
@@ -34,23 +36,20 @@ function daysInMonth(year, month /* 1-12 */) {
 }
 
 // Decide which days to fetch.
-// Default: the month that "yesterday" (UTC) belongs to, days 1..yesterday.
-//   - On the 1st of a month, yesterday is the last day of the previous month, so
-//     the previous (now complete) month is fetched in full — avoids a blank view.
-// Override YEAR/MONTH: a past month is fetched in full; if it equals the current
-//   month-of-yesterday, it is fetched 1..yesterday.
-function resolveDays() {
-  const today = new Date();
-  const yest = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() - 1));
-  const yYear = yest.getUTCFullYear();
-  const yMonth = yest.getUTCMonth() + 1;
-  const yDay = yest.getUTCDate();
+// Default: the current month (UTC), days 1..today — today is a partial day, which
+//   the API reports as it accumulates.
+//   - On the 1st of a month the target is the month "yesterday" belongs to, so the
+//     previous (now complete) month is fetched in full — avoids a blank view.
+// Override YEAR/MONTH: a past month is fetched in full; the current month is
+//   fetched 1..today.
+export function resolveDays(now = new Date()) {
+  const yest = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 1));
 
-  const year = parseInt(process.env.YEAR || '', 10) || yYear;
-  const month = parseInt(process.env.MONTH || '', 10) || yMonth;
+  const year = parseInt(process.env.YEAR || '', 10) || yest.getUTCFullYear();
+  const month = parseInt(process.env.MONTH || '', 10) || yest.getUTCMonth() + 1;
 
-  const isCurrent = year === yYear && month === yMonth;
-  const lastDay = isCurrent ? yDay : daysInMonth(year, month);
+  const isCurrent = year === now.getUTCFullYear() && month === now.getUTCMonth() + 1;
+  const lastDay = isCurrent ? now.getUTCDate() : daysInMonth(year, month);
 
   const days = [];
   for (let d = 1; d <= lastDay; d++) days.push(d);
@@ -145,7 +144,10 @@ async function main() {
   }
 }
 
-main().catch((e) => {
-  console.error('Unexpected error:', e.message);
-  process.exit(1);
-});
+// Run only when invoked as a script, so resolveDays can be imported on its own.
+if (import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
+  main().catch((e) => {
+    console.error('Unexpected error:', e.message);
+    process.exit(1);
+  });
+}
