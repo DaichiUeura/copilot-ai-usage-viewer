@@ -1383,7 +1383,7 @@ function buildTable() {
   const hasNet = MEMBERS.net_available;
   // With one model label for everyone, a top-model column repeats it on every row.
   const hasModels = MEMBERS.models.length > 1;
-  const maxVal = Math.max(...Object.values(MEMBERS.user_total));
+  const totalGross = MEMBERS.grand_list;
 
   function thHTML(colKey, labelKey, tipKey, extraStyle='') {
     const isActive = sortState.col === colKey;
@@ -1408,7 +1408,7 @@ function buildTable() {
   users.forEach((u, i) => {
     const total   = MEMBERS.user_total[u];
     const net     = MEMBERS.user_net[u] || 0;
-    const sharePct = (total / maxVal * 100).toFixed(1);
+    const sharePct = totalGross > 0 ? (total / totalGross * 100).toFixed(1) : '0.0';
     const color   = PALETTE[MEMBERS.users.indexOf(u) % PALETTE.length];
     const topModel = Object.entries(MEMBERS.user_model[u]).sort((a,b)=>b[1]-a[1])[0];
     const origRank = MEMBERS.users.indexOf(u) + 1;

@@ -250,6 +250,17 @@ test('member/model chart is dropped when the CSV reports a single model', async 
   expect(await getChartConfig(page, 'chartDaily')).not.toBeNull();
 });
 
+// The share column answers what fraction of the bill a member accounts for, so it
+// is measured against the total, not against whoever spent the most.
+test('Usage Share is each member share of the total gross', async ({ page }) => {
+  await loadCsvViaUpload(page, meteredCsv);   // alice 5.50, bob 5.00, total 10.50
+  await openMembersTab(page);
+
+  const shares = page.locator('#tableMain td:nth-child(5)');
+  await expect(shares.nth(0)).toContainText('52.4%');
+  await expect(shares.nth(1)).toContainText('47.6%');
+});
+
 test('members Net chart is replaced by a caption when nothing is metered', async ({ page }) => {
   await loadCsvViaUpload(page, standardUsageCsv);
   await openMembersTab(page);
