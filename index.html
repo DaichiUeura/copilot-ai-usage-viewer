@@ -297,6 +297,7 @@ const I18N = {
     orgUnnamed:        '(not named)',
     capBasisBoth:      'Gross and Net',
     capBasisGrossOnly: 'Gross only — Net not available',
+    capUpdated:        'updated',
     orgContextExhausted: 'Included AI credit pool exhausted — usage from then on is billed',
     // validation
     vbWarnTitle:   'Warnings — please review',
@@ -394,6 +395,7 @@ const I18N = {
     orgUnnamed:        '（記載なし）',
     capBasisBoth:      'Gross と Net',
     capBasisGrossOnly: 'Gross のみ — Net は含まれません',
+    capUpdated:        '最終更新',
     orgContextExhausted: 'Included AI credit pool が枯渇 — 以降の消費は請求対象',
     vbWarnTitle:   '注意事項があります',
     vbErrTitle:    'エラーがあります — 値が不正確な可能性があります',
@@ -623,7 +625,7 @@ function fmtIssue(issue) {
 // reports what each member consumed but carries no billed amount. Which slot a CSV
 // lands in follows from its content, so a dropped file and a URL are read the same
 // way. With one CSV open both views read it, which is how a full export behaves.
-const SLOTS = { billing: null, users: null };   // each: { data, validation, filename }
+const SLOTS = { billing: null, users: null };   // each: { data, validation, filename, updated }
 let DATA = null;      // Overview and the cost badges
 let MEMBERS = null;   // everything under Members
 let supersededFiles = [];   // opened, then pushed out by another of the same kind
@@ -694,22 +696,22 @@ function loadFiles(files) {
 // anything is drawn, so opening a pair renders once.
 function loadEntries(entries, tab) {
   const parsed = entries.filter(Boolean)
-    .map(e => ({ rows: parseCSV(e.text), filename: e.filename }))
+    .map(e => ({ rows: parseCSV(e.text), filename: e.filename, updated: e.updated }))
     .filter(e => e.rows.length);
   if (!parsed.length) return false;
   clearSlots();
-  supersededFiles = parsed.map(e => acceptRows(e.rows, e.filename)).filter(Boolean);
+  supersededFiles = parsed.map(e => acceptRows(e.rows, e.filename, e.updated)).filter(Boolean);
   showDashboard(tab);
   return true;
 }
 
 // A CSV that carries a billed amount is the billing feed; one that leaves
 // net_amount blank reports consumption only.
-function acceptRows(rows, filename) {
+function acceptRows(rows, filename, updated) {
   const data = buildDataSets(rows);
   const slot = data.net_available ? 'billing' : 'users';
   const superseded = SLOTS[slot] && SLOTS[slot].filename;
-  SLOTS[slot] = { data, validation: validate(rows), filename };
+  SLOTS[slot] = { data, validation: validate(rows), filename, updated: updated ?? null };
   DATA    = SLOTS.billing?.data ?? SLOTS.users?.data;
   MEMBERS = SLOTS.users?.data   ?? SLOTS.billing?.data;
   sortState = { col: 'total', dir: 'desc' };
@@ -761,7 +763,18 @@ function captionFor(slot) {
   const { dates, net_available } = slot.data;
   const range = dates.length ? `${dates[0]} ${t('separator')} ${dates[dates.length-1]} (UTC)` : '';
   const basis = net_available ? t('capBasisBoth') : t('capBasisGrossOnly');
-  return [slot.filename, range, basis].filter(Boolean).join('  ·  ');
+  const updated = slot.updated ? `${t('capUpdated')} ${localStamp(slot.updated)}` : '';
+  return [slot.filename, range, basis, updated].filter(Boolean).join('  ·  ');
+}
+
+// The date range in a caption is UTC, so this reads in the same shape but in the viewer's
+// own zone — the question it answers is "how long ago", which local time answers directly.
+function localStamp(d) {
+  const p = n => String(n).padStart(2, '0');
+  const zone = new Intl.DateTimeFormat(undefined, { timeZoneName: 'short' })
+    .formatToParts(d).find(part => part.type === 'timeZoneName');
+  const date = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  return `${date} ${p(d.getHours())}:${p(d.getMinutes())}${zone ? ` (${zone.value})` : ''}`;
 }
 
 function renderCaptions() {
@@ -1490,7 +1503,15 @@ async function fetchCSV(url) {
     if (length > REMOTE_CSV_MAX_BYTES) return null;
     const text = await res.text();
     if (text.length > REMOTE_CSV_MAX_BYTES) return null;
-    return { text, filename: url.pathname.split('/').pop() || url.hostname };
+    // When the host dates the file, that date says when this copy was published — the
+    // one thing the rows themselves cannot report. Hosts that omit the header leave it null.
+    const dated = res.headers.get('last-modified');
+    const stamp = dated ? new Date(dated) : null;
+    return {
+      text,
+      filename: url.pathname.split('/').pop() || url.hostname,
+      updated: stamp && !isNaN(stamp) ? stamp : null,
+    };
   } catch (e) {
     console.error('Failed to load CSV from URL:', e);
     return null;

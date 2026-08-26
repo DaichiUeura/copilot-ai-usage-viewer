@@ -34,6 +34,10 @@ The resolved URL must be HTTP(S), and CSV files are limited to 10 MB.
 A second CSV can be opened alongside the first with `users_csv=` — see
 [Automation](#automation-optional).
 
+When the host dates the response with a `Last-Modified` header, each panel's caption
+adds when its copy was published, in your own time zone. A feed republished on a
+schedule can stall without the rows ever looking wrong, and that date is what shows it.
+
 ### Mark a usage limit
 
 Use `net_limit=` to draw a horizontal reference line on the Overview cumulative

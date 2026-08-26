@@ -18,12 +18,13 @@ const orgTotalCsvText = fs.readFileSync(orgTotalCsv, 'utf8');
 const perUserNoNetCsvText = fs.readFileSync(perUserNoNetCsv, 'utf8');
 const perUserMismatchCsvText = fs.readFileSync(perUserMismatchCsv, 'utf8');
 
-function serveCsv(page, url, body) {
+function serveCsv(page, url, body, lastModified) {
   return page.route(url, route => route.fulfill({
     status: 200,
     headers: {
       'access-control-allow-origin': '*',
       'content-type': 'text/csv; charset=utf-8',
+      ...(lastModified ? { 'last-modified': lastModified } : {}),
     },
     body,
   }));
@@ -363,6 +364,30 @@ test('each panel names its own file, date range and basis', async ({ page }) => 
 
   // The header no longer claims one range for both feeds.
   await expect(page.locator('#subtitle')).not.toContainText('2026-');
+});
+
+// A feed republished on a schedule can stall without the rows ever looking wrong, so a
+// panel says when its copy was published whenever the host dates it. Local time, because
+// the question it answers is how long ago.
+test.describe('publication date', () => {
+  test.use({ timezoneId: 'Asia/Tokyo' });
+
+  test('a panel names when its file was published when the host dates it', async ({ page }) => {
+    await serveCsv(page, 'https://example.test/org.csv', orgTotalCsvText, 'Wed, 26 Aug 2026 14:31:55 GMT');
+    await page.goto(`${appUrl}?csv=https://example.test/org.csv`);
+    await expect(page.locator('#dashboard')).toBeVisible();
+
+    await expect(page.locator('#overviewCaption')).toContainText('updated 2026-08-26 23:31');
+  });
+
+  test('a panel says nothing about publication when the host omits the date', async ({ page }) => {
+    await serveCsv(page, 'https://example.test/org.csv', orgTotalCsvText);
+    await page.goto(`${appUrl}?csv=https://example.test/org.csv`);
+    await expect(page.locator('#dashboard')).toBeVisible();
+
+    await expect(page.locator('#overviewCaption')).toContainText('org.csv');
+    await expect(page.locator('#overviewCaption')).not.toContainText('updated');
+  });
 });
 
 // A dropped file carries no parameter name, so content decides the slot — and the
