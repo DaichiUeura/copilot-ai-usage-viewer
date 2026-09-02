@@ -1,24 +1,33 @@
 #!/usr/bin/env node
-// Acquisition stage: read the organization's daily AI credit usage and save raw JSON.
-// The saved JSON is consumed by transform.mjs to build the viewer CSV.
+// Acquisition stage: read the organization's daily AI credit usage for an
+// explicit inclusive UTC day range and save the raw JSON. transform.mjs
+// consumes the saved JSON to build the viewer CSV.
 //
 // Output contract:
 //   - Never print the token or response body (usage data) to stdout.
 //   - Only print progress: "YYYY-MM-DD: 200 OK (N items)".
 //   - Always save raw JSON to RAW_DIR/YYYY-MM-DD.json.
+//   - Every requested day is required: a failed or missing day is fatal, so a
+//     technical failure never produces a silently partial Overview. That is
+//     also why a reused RAW_DIR needs no clearing here: a successful run has
+//     rewritten every day of the range, and an unsuccessful one stops the
+//     pipeline before the leftovers can be read.
 //
 // Environment variables:
 //   AI_USAGE_PAT (required) token with Organization Administration: read
 //   ORG          (required) target organization login
-//   YEAR, MONTH  (optional) backfill a specific month; defaults to the month of
-//                "yesterday" (UTC). A past month is fetched in full; the current
-//                month is fetched from day 1 to today.
+//   FROM_DAY, THROUGH_DAY (required) inclusive UTC calendar days (YYYY-MM-DD)
+//                bounding the requested range. The caller — a workflow
+//                computing the current UTC month, or a manual backfill —
+//                owns which period to request; this script never infers one
+//                from the clock.
 //   RAW_DIR      (optional) where to save raw JSON; default "./out/raw"
 
 import fs from 'node:fs/promises';
 import { realpathSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { requireDayRange, dayRange } from './date-range.mjs';
 
 const API_VERSION = '2022-11-28';
 
@@ -31,29 +40,16 @@ function required(name) {
   return v;
 }
 
-function daysInMonth(year, month /* 1-12 */) {
-  return new Date(Date.UTC(year, month, 0)).getUTCDate();
-}
-
-// Decide which days to fetch.
-// Default: the current month (UTC), days 1..today — today is a partial day, which
-//   the API reports as it accumulates.
-//   - On the 1st of a month the target is the month "yesterday" belongs to, so the
-//     previous (now complete) month is fetched in full — avoids a blank view.
-// Override YEAR/MONTH: a past month is fetched in full; the current month is
-//   fetched 1..today.
-export function resolveDays(now = new Date()) {
-  const yest = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 1));
-
-  const year = parseInt(process.env.YEAR || '', 10) || yest.getUTCFullYear();
-  const month = parseInt(process.env.MONTH || '', 10) || yest.getUTCMonth() + 1;
-
-  const isCurrent = year === now.getUTCFullYear() && month === now.getUTCMonth() + 1;
-  const lastDay = isCurrent ? now.getUTCDate() : daysInMonth(year, month);
-
-  const days = [];
-  for (let d = 1; d <= lastDay; d++) days.push(d);
-  return { year, month, days };
+// Every day the requested inclusive range covers, each carrying the
+// year/month/day the per-day billing endpoint takes as query parameters (it
+// has no range form of its own). Throws on a missing, malformed, impossible,
+// or reversed FROM_DAY/THROUGH_DAY.
+export function resolveDays(fromDay, throughDay) {
+  const range = requireDayRange(fromDay, throughDay);
+  return dayRange(range.fromDay, range.throughDay).map((dateStr) => {
+    const [year, month, day] = dateStr.split('-').map(Number);
+    return { year, month, day, dateStr };
+  });
 }
 
 async function fetchDay(org, token, year, month, day) {
@@ -83,34 +79,33 @@ async function main() {
   const org = required('ORG');
   const rawDir = process.env.RAW_DIR || './out/raw';
 
-  const { year, month, days } = resolveDays();
-  if (days.length === 0) {
-    console.log('No days to fetch.');
-    return;
+  let days;
+  try {
+    days = resolveDays(process.env.FROM_DAY, process.env.THROUGH_DAY);
+  } catch (e) {
+    console.error(e.message);
+    process.exit(2);
   }
+
   await fs.mkdir(rawDir, { recursive: true });
 
-  console.log(`Target: org=${org} ${year}-${String(month).padStart(2, '0')} days=${days.length}`);
+  console.log(`Target: org=${org} ${days[0].dateStr}..${days[days.length - 1].dateStr} days=${days.length}`);
 
   let ok = 0;
-  let failed = 0;
-  let firstErrorStatus = 0;
+  const failedDays = [];
 
-  for (const day of days) {
-    const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  for (const { year, month, day, dateStr } of days) {
     let res;
     try {
       res = await fetchDay(org, token, year, month, day);
     } catch (e) {
-      failed++;
-      if (!firstErrorStatus) firstErrorStatus = -1;
+      failedDays.push(dateStr);
       console.log(`${dateStr}: network error (${e.code || e.name})`);
       continue;
     }
 
     if (!res.ok) {
-      failed++;
-      if (!firstErrorStatus) firstErrorStatus = res.status;
+      failedDays.push(dateStr);
       // The error message (not usage data) is useful for diagnosis; print it briefly.
       let msg = '';
       try {
@@ -125,8 +120,8 @@ async function main() {
     try {
       body = await res.json();
     } catch {
+      failedDays.push(dateStr);
       console.log(`${dateStr}: 200 but JSON parse failed`);
-      failed++;
       continue;
     }
 
@@ -136,10 +131,13 @@ async function main() {
     await fs.writeFile(path.join(rawDir, `${dateStr}.json`), JSON.stringify(body, null, 2));
   }
 
-  console.log(`\nResult: ${ok} ok / ${failed} failed (raw saved to ${rawDir})`);
+  console.log(`\nResult: ${ok} ok / ${failedDays.length} failed (raw saved to ${rawDir})`);
 
-  if (failed > 0 && ok === 0) {
-    console.error(`\nAll requests failed (first status: ${firstErrorStatus}). Check token type and permissions.`);
+  if (failedDays.length > 0) {
+    console.error(
+      `\n${failedDays.length} of ${days.length} requested day(s) failed: ${failedDays.join(', ')}. ` +
+      'Every requested day is required; check the token and permissions, then retry.'
+    );
     process.exit(1);
   }
 }

@@ -1,7 +1,9 @@
 // Behavior tests for transform-users.mjs (run with: node --test).
 // Asserts the per-user metrics rows -> CSV mapping: schema, the gross-only
-// columns, the month scope taken from the data, and that an empty result fails
-// loudly instead of publishing an empty CSV.
+// columns, and the publication contract for the explicit FROM_DAY/THROUGH_DAY
+// range — a not-yet-generated range and a range with only zero-credit rows
+// both succeed with no OUT_CSV (and remove a stale one), while corrupt input
+// remains fatal.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -23,8 +25,10 @@ const EXPECTED_HEADER =
 
 function runTransform(rawDir, opts = {}) {
   const out = opts.outCsv || path.join(os.tmpdir(), `transform-users-test-${Date.now()}-${Math.random()}.csv`);
+  const fromDay = opts.fromDay !== undefined ? opts.fromDay : '2026-05-04';
+  const throughDay = opts.throughDay !== undefined ? opts.throughDay : '2026-05-06';
   const stdout = execFileSync('node', [transform], {
-    env: { ...process.env, USERS_RAW_DIR: rawDir, OUT_CSV: out, ORG, ...(opts.env || {}) },
+    env: { ...process.env, USERS_RAW_DIR: rawDir, OUT_CSV: out, ORG, FROM_DAY: fromDay, THROUGH_DAY: throughDay, ...(opts.env || {}) },
     encoding: 'utf8',
     stdio: ['pipe', 'pipe', 'pipe'],
   });
@@ -64,22 +68,6 @@ function writeRawDir(days) {
     const rows = Object.entries(users).map(([user_login, credits]) =>
       credits === null ? { day, user_login } : { day, user_login, ai_credits_used: credits });
     fs.writeFileSync(path.join(dir, `${day}.json`), JSON.stringify(rows));
-  }
-  return dir;
-}
-
-// Build a billing raw directory from { 'YYYY-MM-DD': totalCredits }, splitting
-// each day over two SKUs so the cross-check has to sum all of them.
-function writeBillingDir(days) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'billing-raw-'));
-  for (const [day, total] of Object.entries(days)) {
-    fs.writeFileSync(path.join(dir, `${day}.json`), JSON.stringify({
-      organization: 'Example Org',
-      usageItems: [
-        { sku: 'Copilot AI Credits', grossQuantity: total - 1 },
-        { sku: 'Copilot Cloud Agent', grossQuantity: 1 },
-      ],
-    }));
   }
   return dir;
 }
@@ -133,114 +121,103 @@ test('drops rows with no credit usage', () => {
   assert.deepEqual(rows.map((r) => `${r.date}/${r.username}`), ['2026-05-04/alice', '2026-05-05/dave']);
 });
 
-test('tolerates missing days, empty days and unrelated files', () => {
+test('a raw file outside the requested range is ignored, with no zero row invented for a day never fetched', () => {
   const dir = writeRawDir({
     '2026-05-04': { alice: 5 },
-    '2026-05-06': { alice: 6 },
-    '2026-05-07': { alice: 7 },
+    '2026-05-05': { alice: 6 }, // outside the requested 05-04..05-04 range below
     '2026-05-08': {},
   });
   fs.writeFileSync(path.join(dir, 'notes.txt'), 'not a day file');
-  fs.writeFileSync(path.join(dir, 'report-meta.json'), '{"broken":');
 
-  const { out, stdout } = runTransform(dir);
+  const { out, stdout } = runTransform(dir, { fromDay: '2026-05-04', throughDay: '2026-05-04' });
   const { rows } = readCsv(out);
 
-  // 2026-05-05 was never fetched, so it is simply absent — no zero row for it.
-  assert.deepEqual(rows.map((r) => r.date), ['2026-05-04', '2026-05-06', '2026-05-07']);
-  assert.match(stdout, /dates 2026-05-04\.\.2026-05-07/);
+  assert.deepEqual(rows.map((r) => r.date), ['2026-05-04']);
+  assert.match(stdout, /range 2026-05-04\.\.2026-05-04/);
 });
 
-test('trims to the month of the newest day, independent of the local time zone', () => {
-  const dir = writeRawDir({
-    '2026-04-25': { alice: 4, mallory: 40 },
-    '2026-04-30': { alice: 5, mallory: 50 },
-    '2026-05-01': { alice: 6 },
-    '2026-05-15': { alice: 7 },
-  });
-
-  const east = runTransform(dir, { env: { TZ: 'Pacific/Kiritimati' } });
-  const west = runTransform(dir, { env: { TZ: 'Pacific/Niue' } });
-  const { rows } = readCsv(east.out);
-
-  assert.deepEqual(rows.map((r) => r.date), ['2026-05-01', '2026-05-15']);
-  // April is out of scope, so a member who only used credits in April is gone.
-  assert.equal(rows.some((r) => r.username === 'mallory'), false);
-  assert.match(east.stdout, /scope 2026-05 \(latest 2026-05-15\)/);
-  assert.match(east.stdout, /dropped 4 row\(s\) outside the month/);
-
-  // The scope comes from the data, never from the clock.
-  assert.deepEqual(fs.readFileSync(east.out), fs.readFileSync(west.out));
+test('a row whose own day field falls outside the range is dropped even if the filename is in range', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'users-raw-'));
+  fs.writeFileSync(path.join(dir, '2026-05-04.json'), JSON.stringify([
+    { day: '2026-05-04', user_login: 'alice', ai_credits_used: 5 },
+    { day: '2026-04-30', user_login: 'mallory', ai_credits_used: 40 }, // embedded date outside range
+  ]));
+  const { rows } = readCsv(runTransform(dir, { fromDay: '2026-05-04', throughDay: '2026-05-04' }).out);
+  assert.deepEqual(rows.map((r) => r.username), ['alice']);
 });
 
-test('keeps the previous month in full until the new month has data', () => {
-  const dir = writeRawDir({
-    '2026-04-03': { alice: 3 },
-    '2026-04-30': { alice: 4 },
-  });
-  const before = readCsv(runTransform(dir).out);
+test('fails when the input directory is missing', () => {
+  const outCsv = path.join(os.tmpdir(), `transform-users-notgen-${Date.now()}.csv`);
+  fs.writeFileSync(outCsv, 'stale previous run\n');
 
-  // No data for the new month yet, so the completed month stays whole — and the
-  // days it never had are not invented.
-  assert.deepEqual(before.rows.map((r) => r.date), ['2026-04-03', '2026-04-30']);
+  const error = expectFailure(() =>
+    runTransform(path.join(os.tmpdir(), `users-raw-does-not-exist-${Date.now()}`), { outCsv }));
 
-  fs.writeFileSync(path.join(dir, '2026-05-01.json'),
-    JSON.stringify([{ day: '2026-05-01', user_login: 'alice', ai_credits_used: 9 }]));
-  const after = readCsv(runTransform(dir).out);
-
-  assert.deepEqual(after.rows.map((r) => r.date), ['2026-05-01']);
+  assert.match(error.stderr, /Cannot read input directory/);
+  assert.equal(fs.readFileSync(outCsv, 'utf8'), 'stale previous run\n');
 });
 
-test('fails without writing a CSV when nothing survives', () => {
+test('succeeds with no OUT_CSV when the directory exists but has no files in range', () => {
+  const dir = writeRawDir({ '2026-04-01': { alice: 5 } }); // entirely outside the requested range
+  const outCsv = path.join(os.tmpdir(), `transform-users-empty-${Date.now()}.csv`);
+  fs.writeFileSync(outCsv, 'stale previous run\n');
+
+  const { stdout } = runTransform(dir, { outCsv });
+
+  assert.match(stdout, /Members not generated yet/);
+  assert.equal(fs.existsSync(outCsv), false);
+});
+
+test('succeeds with no OUT_CSV when every in-range row is zero-credit, and removes a stale CSV', () => {
+  const dir = writeRawDir({ '2026-05-04': { alice: 0, bob: 0 } });
+  const outCsv = path.join(os.tmpdir(), `transform-users-zero-${Date.now()}.csv`);
+  fs.writeFileSync(outCsv, 'stale previous run\n');
+
+  const { stdout } = runTransform(dir, { outCsv, fromDay: '2026-05-04', throughDay: '2026-05-04' });
+
+  assert.match(stdout, /no positive-credit rows/);
+  assert.equal(fs.existsSync(outCsv), false);
+});
+
+test('the first positive row after a run with no output restores the CSV', () => {
+  const outCsv = path.join(os.tmpdir(), `transform-users-restore-${Date.now()}.csv`);
+
+  const zeroDir = writeRawDir({ '2026-05-04': { alice: 0 } });
+  runTransform(zeroDir, { outCsv, fromDay: '2026-05-04', throughDay: '2026-05-04' });
+  assert.equal(fs.existsSync(outCsv), false);
+
+  const positiveDir = writeRawDir({ '2026-05-04': { alice: 5 } });
+  runTransform(positiveDir, { outCsv, fromDay: '2026-05-04', throughDay: '2026-05-04' });
+  assert.equal(fs.existsSync(outCsv), true);
+  const { rows } = readCsv(outCsv);
+  assert.deepEqual(rows.map((r) => r.username), ['alice']);
+});
+
+test('fails (technical error) without writing a CSV, and leaves a previous CSV in place', () => {
   const outCsv = path.join(os.tmpdir(), `transform-users-keep-${Date.now()}.csv`);
   fs.writeFileSync(outCsv, 'previous run\n');
 
-  expectFailure(() => runTransform(fs.mkdtempSync(path.join(os.tmpdir(), 'users-empty-')), { outCsv }));
+  const corrupt = writeRawDir({ '2026-05-04': { alice: 5 } });
+  fs.writeFileSync(path.join(corrupt, '2026-05-05.json'), '[{"day":');
+  const corruptErr = expectFailure(() => runTransform(corrupt, { outCsv, fromDay: '2026-05-04', throughDay: '2026-05-05' }));
+  assert.match(corruptErr.stderr, /2026-05-05\.json/);
 
-  const allZero = writeRawDir({ '2026-05-10': { alice: 0, bob: 0 } });
-  const zeroErr = expectFailure(() => runTransform(allZero, { outCsv }));
-  assert.match(zeroErr.stderr, /No rows in scope 2026-05 \(latest available day 2026-05-10\)/);
-  assert.match(zeroErr.stderr, /2 row\(s\) dropped as zero credits/);
-
-  // The last good CSV must survive a run that produced nothing.
+  // A technical failure must not touch the last-good CSV.
   assert.equal(fs.readFileSync(outCsv, 'utf8'), 'previous run\n');
 
-  const corrupt = writeRawDir({ '2026-05-10': { alice: 5 } });
-  fs.writeFileSync(path.join(corrupt, '2026-05-11.json'), '[{"day":');
-  const corruptErr = expectFailure(() => runTransform(corrupt, { outCsv }));
-
-  // A missing day is normal; a corrupt one means the fetch stage broke.
-  assert.match(corruptErr.stderr, /2026-05-11\.json/);
-
-  const notRows = writeRawDir({ '2026-05-10': { alice: 5 } });
-  fs.writeFileSync(path.join(notRows, '2026-05-11.json'), '[null]');
-  const notRowsErr = expectFailure(() => runTransform(notRows, { outCsv }));
-
-  // A file that parses but holds something other than rows names itself too.
-  assert.match(notRowsErr.stderr, /2026-05-11\.json/);
+  const notRows = writeRawDir({ '2026-05-04': { alice: 5 } });
+  fs.writeFileSync(path.join(notRows, '2026-05-05.json'), '[null]');
+  const notRowsErr = expectFailure(() => runTransform(notRows, { outCsv, fromDay: '2026-05-04', throughDay: '2026-05-05' }));
+  assert.match(notRowsErr.stderr, /2026-05-05\.json/);
+  assert.equal(fs.readFileSync(outCsv, 'utf8'), 'previous run\n');
 });
 
-test('reports a cross-check warning without failing the job', () => {
-  // Fixture daily totals: 1242, 5, 15.25 credits.
-  const agreeing = writeBillingDir({ '2026-05-04': 1242, '2026-05-05': 5, '2026-05-09': 999 });
-  const clean = runTransform(rawFixtures, { env: { BILLING_RAW_DIR: agreeing } });
+test('rejects a missing or invalid FROM_DAY/THROUGH_DAY', () => {
+  const err = expectFailure(() => runTransform(rawFixtures, { fromDay: '' }));
+  assert.match(err.stderr, /FROM_DAY is not set/);
+});
 
-  // 2026-05-06 (here only) and 2026-05-09 (billing only) are not compared.
-  assert.match(clean.stdout, /Cross-check: 2 shared day\(s\), 0 over 1 credit\(s\)/);
-
-  const drifting = writeBillingDir({ '2026-05-04': 1300, '2026-05-05': 5 });
-  const warned = runTransform(rawFixtures, { env: { BILLING_RAW_DIR: drifting } });
-
-  assert.match(warned.stdout, /Cross-check 2026-05-04: 1242 credits here vs 1300 in billing/);
-  assert.match(warned.stdout, /Cross-check: 2 shared day\(s\), 1 over 1 credit\(s\)/);
-
-  // A day the reports came back empty for is the one most worth comparing, so it
-  // has to count as a shared day rather than quietly reading as agreement.
-  const withEmptyDay = writeRawDir({ '2026-05-04': { alice: 100 }, '2026-05-05': {} });
-  const gap = runTransform(withEmptyDay, {
-    env: { BILLING_RAW_DIR: writeBillingDir({ '2026-05-04': 100, '2026-05-05': 900 }) },
-  });
-
-  assert.match(gap.stdout, /Cross-check 2026-05-05: 0 credits here vs 900 in billing/);
-  assert.match(gap.stdout, /Cross-check: 2 shared day\(s\), 1 over 1 credit\(s\)/);
+test('rejects a missing ORG', () => {
+  const err = expectFailure(() => runTransform(rawFixtures, { env: { ORG: '' } }));
+  assert.match(err.stderr, /ORG is not set/);
 });

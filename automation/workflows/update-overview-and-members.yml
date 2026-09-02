@@ -11,7 +11,6 @@ on:
   schedule:
     # Hourly at :17 — off the top of the hour, where scheduled runs queue up.
     # The newest day is the current UTC day, which the API reports as it accumulates.
-    # On the 1st of a month the fetch covers the previous month in full instead.
     - cron: '17 * * * *'
   workflow_dispatch:
 
@@ -36,27 +35,49 @@ jobs:
         with:
           node-version: 22
 
+      # Both feeds target the same current UTC month, day 1 through the run date —
+      # day 1 is a partial D-0 Overview. Every script here takes this range
+      # explicitly rather than working a month out for itself; pass a different
+      # FROM_DAY/THROUGH_DAY to build a full past month instead.
+      - name: Compute the current UTC month range
+        id: range
+        run: |
+          # One clock reading for both ends, so a run that starts as the UTC
+          # month rolls over cannot pair a stale month start with a new day.
+          today=$(date -u +%Y-%m-%d)
+          echo "from_day=${today%-*}-01" >> "$GITHUB_OUTPUT"
+          echo "through_day=$today" >> "$GITHUB_OUTPUT"
+
       - name: Fetch usage (raw JSON)
         env:
           AI_USAGE_PAT: ${{ secrets.AI_USAGE_PAT }}
           ORG: ${{ vars.ORG || github.repository_owner }}
+          FROM_DAY: ${{ steps.range.outputs.from_day }}
+          THROUGH_DAY: ${{ steps.range.outputs.through_day }}
           RAW_DIR: ./out/raw
         run: node automation/scripts/fetch.mjs
 
       - name: Build CSV into the site directory
         env:
           RAW_DIR: ./out/raw
+          FROM_DAY: ${{ steps.range.outputs.from_day }}
+          THROUGH_DAY: ${{ steps.range.outputs.through_day }}
           OUT_CSV: ./site/data/ai-credit-usage.csv
         run: node automation/scripts/transform.mjs
 
       # Per-user consumption from the Copilot usage metrics reports, rendered in the Members tab.
       # The PAT needs the View Organization Copilot Metrics permission on top of the billing one.
-      # A failure here fails the job on purpose: the site is rebuilt whole every run, so leaving
-      # the last successful deployment live beats replacing it with one missing its Members data.
+      # The current month not being generated yet, or having no positive-credit rows, is a normal
+      # result: fetch-users.mjs and transform-users.mjs exit 0 and simply produce no Members CSV,
+      # so this run publishes Overview-only. Only a technical failure (bad token, corrupt
+      # download, or a required backfill day the API cannot produce) fails these steps and the
+      # whole job, which leaves the previous successful deployment live instead of replacing it.
       - name: Fetch per-user consumption (raw JSON)
         env:
           AI_USAGE_PAT: ${{ secrets.AI_USAGE_PAT }}
           ORG: ${{ vars.ORG || github.repository_owner }}
+          FROM_DAY: ${{ steps.range.outputs.from_day }}
+          THROUGH_DAY: ${{ steps.range.outputs.through_day }}
           USERS_RAW_DIR: ./out/raw-users
         run: node automation/scripts/fetch-users.mjs
 
@@ -64,12 +85,31 @@ jobs:
         env:
           USERS_RAW_DIR: ./out/raw-users
           ORG: ${{ vars.ORG || github.repository_owner }}
-          BILLING_RAW_DIR: ./out/raw # cross-check the daily totals (advisory only)
+          FROM_DAY: ${{ steps.range.outputs.from_day }}
+          THROUGH_DAY: ${{ steps.range.outputs.through_day }}
           OUT_CSV: ./site/data/ai-credit-usage-by-user.csv
         run: node automation/scripts/transform-users.mjs
 
-      - name: Assemble site (viewer + CSVs only)
-        run: cp index.html ./site/index.html
+      # Advisory only: logs a daily-total discrepancy between the two feeds without
+      # changing either CSV or failing the job. Skips cleanly when this run has no
+      # Members CSV to compare against the Overview feed.
+      - name: Cross-check the two feeds (advisory)
+        env:
+          RAW_DIR: ./out/raw
+          USERS_RAW_DIR: ./out/raw-users
+          FROM_DAY: ${{ steps.range.outputs.from_day }}
+          THROUGH_DAY: ${{ steps.range.outputs.through_day }}
+        run: node automation/scripts/cross-check.mjs
+
+      - name: Assemble site (viewer + CSVs)
+        id: assemble
+        run: |
+          cp index.html ./site/index.html
+          if [ -f ./site/data/ai-credit-usage-by-user.csv ]; then
+            echo "members_published=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "members_published=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - uses: actions/upload-pages-artifact@v5
         with:
@@ -77,3 +117,14 @@ jobs:
 
       - id: deploy
         uses: actions/deploy-pages@v5
+
+      # The Members tab only appears when this run actually published a Members
+      # CSV — append users_csv to the shared URL only in that case, rather than
+      # linking to a file that was never written.
+      - name: Report the viewer URL
+        run: |
+          if [ "${{ steps.assemble.outputs.members_published }}" = "true" ]; then
+            echo "${{ steps.deploy.outputs.page_url }}index.html?csv=./data/ai-credit-usage.csv&users_csv=./data/ai-credit-usage-by-user.csv" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "${{ steps.deploy.outputs.page_url }}index.html?csv=./data/ai-credit-usage.csv" >> "$GITHUB_STEP_SUMMARY"
+          fi

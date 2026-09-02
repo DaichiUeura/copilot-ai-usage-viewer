@@ -9,7 +9,6 @@ on:
   schedule:
     # Hourly at :17 — off the top of the hour, where scheduled runs queue up.
     # The newest day is the current UTC day, which the API reports as it accumulates.
-    # On the 1st of a month the fetch covers the previous month in full instead.
     - cron: '17 * * * *'
   workflow_dispatch:
 
@@ -34,16 +33,34 @@ jobs:
         with:
           node-version: 22
 
+      # This template always targets the current UTC month, day 1 through the run
+      # date — day 1 is a partial D-0 Overview that fills in as the API accumulates
+      # it. fetch.mjs and transform.mjs take this range explicitly rather than
+      # working a month out for themselves; pass a different FROM_DAY/THROUGH_DAY
+      # here to build a full past month instead.
+      - name: Compute the current UTC month range
+        id: range
+        run: |
+          # One clock reading for both ends, so a run that starts as the UTC
+          # month rolls over cannot pair a stale month start with a new day.
+          today=$(date -u +%Y-%m-%d)
+          echo "from_day=${today%-*}-01" >> "$GITHUB_OUTPUT"
+          echo "through_day=$today" >> "$GITHUB_OUTPUT"
+
       - name: Fetch usage (raw JSON)
         env:
           AI_USAGE_PAT: ${{ secrets.AI_USAGE_PAT }}
           ORG: ${{ vars.ORG || github.repository_owner }}
+          FROM_DAY: ${{ steps.range.outputs.from_day }}
+          THROUGH_DAY: ${{ steps.range.outputs.through_day }}
           RAW_DIR: ./out/raw
         run: node automation/scripts/fetch.mjs
 
       - name: Build CSV into the site directory
         env:
           RAW_DIR: ./out/raw
+          FROM_DAY: ${{ steps.range.outputs.from_day }}
+          THROUGH_DAY: ${{ steps.range.outputs.through_day }}
           OUT_CSV: ./site/data/ai-credit-usage.csv
         run: node automation/scripts/transform.mjs
 

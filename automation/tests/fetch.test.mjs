@@ -1,7 +1,8 @@
 // Behavior tests for fetch.mjs (run with: node --test).
-// Asserts which days resolveDays picks — the current month runs to today, any other
-// month is taken in full, and YEAR/MONTH selects a month explicitly — and that
-// importing the module hands over resolveDays without starting a fetch.
+// Asserts resolveDays against the explicit FROM_DAY/THROUGH_DAY contract —
+// there is no implicit clock-based month, so every case states the range it
+// requests — and that importing the module hands over resolveDays without
+// starting a fetch.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -14,66 +15,67 @@ import { resolveDays } from '../scripts/fetch.mjs';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const fetchScript = path.join(here, '..', 'scripts', 'fetch.mjs');
 
-// resolveDays reads YEAR/MONTH from the environment, so every case states both —
-// undefined meaning "not set" — rather than inheriting whatever the shell exports.
-function withEnv({ YEAR, MONTH }, fn) {
-  const saved = { YEAR: process.env.YEAR, MONTH: process.env.MONTH };
-  const apply = (vars) => {
-    for (const [k, v] of Object.entries(vars)) {
-      if (v === undefined) delete process.env[k];
-      else process.env[k] = v;
-    }
-  };
-  apply({ YEAR, MONTH });
-  try {
-    return fn();
-  } finally {
-    apply(saved);
-  }
-}
-
-function range(from, to) {
+function dateStrs(from, through) {
   const out = [];
-  for (let d = from; d <= to; d++) out.push(d);
+  for (let d = new Date(`${from}T00:00:00Z`); d <= new Date(`${through}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + 1)) {
+    out.push(d.toISOString().slice(0, 10));
+  }
   return out;
 }
 
-const noOverride = { YEAR: undefined, MONTH: undefined };
-
-test('mid-month: the current month up to today', () => {
-  const r = withEnv(noOverride, () => resolveDays(new Date('2026-08-24T05:00:00Z')));
-  assert.deepEqual(r, { year: 2026, month: 8, days: range(1, 24) });
+test('an explicit inclusive range resolves each day with its year/month/day', () => {
+  const days = resolveDays('2026-08-01', '2026-08-03');
+  assert.deepEqual(days, [
+    { year: 2026, month: 8, day: 1, dateStr: '2026-08-01' },
+    { year: 2026, month: 8, day: 2, dateStr: '2026-08-02' },
+    { year: 2026, month: 8, day: 3, dateStr: '2026-08-03' },
+  ]);
 });
 
-test('last day of the month: the current month in full', () => {
-  const r = withEnv(noOverride, () => resolveDays(new Date('2026-08-31T23:00:00Z')));
-  assert.deepEqual(r, { year: 2026, month: 8, days: range(1, 31) });
+test('a single-day range resolves to exactly that day', () => {
+  assert.deepEqual(resolveDays('2026-08-24', '2026-08-24'), [
+    { year: 2026, month: 8, day: 24, dateStr: '2026-08-24' },
+  ]);
 });
 
-test('1st of the month: the previous month in full', () => {
-  const r = withEnv(noOverride, () => resolveDays(new Date('2026-08-01T05:00:00Z')));
-  assert.deepEqual(r, { year: 2026, month: 7, days: range(1, 31) });
+test('a range crossing a leap day includes Feb 29', () => {
+  // 2028 is a leap year; the same range in 2026 (not a leap year) has one fewer day.
+  const leapDays = resolveDays('2028-02-27', '2028-03-02');
+  assert.deepEqual(leapDays.map((d) => d.dateStr), ['2028-02-27', '2028-02-28', '2028-02-29', '2028-03-01', '2028-03-02']);
+
+  const nonLeapDays = resolveDays('2026-02-27', '2026-03-02');
+  assert.deepEqual(nonLeapDays.map((d) => d.dateStr), dateStrs('2026-02-27', '2026-03-02'));
+  assert.equal(nonLeapDays.some((d) => d.dateStr === '2026-02-29'), false);
 });
 
-test('YEAR/MONTH selecting a past month: that month in full', () => {
-  const r = withEnv({ YEAR: '2026', MONTH: '6' }, () =>
-    resolveDays(new Date('2026-08-24T05:00:00Z')));
-  assert.deepEqual(r, { year: 2026, month: 6, days: range(1, 30) });
+test('a missing FROM_DAY or THROUGH_DAY throws', () => {
+  assert.throws(() => resolveDays(undefined, '2026-08-24'), /FROM_DAY is not set/);
+  assert.throws(() => resolveDays('2026-08-01', undefined), /THROUGH_DAY is not set/);
 });
 
-test('YEAR/MONTH selecting the current month: still stops at today', () => {
-  const r = withEnv({ YEAR: '2026', MONTH: '8' }, () =>
-    resolveDays(new Date('2026-08-24T05:00:00Z')));
-  assert.deepEqual(r, { year: 2026, month: 8, days: range(1, 24) });
+test('a malformed date throws', () => {
+  assert.throws(() => resolveDays('2026/08/01', '2026-08-24'), /FROM_DAY must be an ISO UTC date/);
+  assert.throws(() => resolveDays('2026-08-01', 'not-a-date'), /THROUGH_DAY must be an ISO UTC date/);
+});
+
+test('an impossible calendar date throws', () => {
+  assert.throws(() => resolveDays('2026-02-30', '2026-03-01'), /FROM_DAY is not a valid calendar date/);
+  assert.throws(() => resolveDays('2026-08-01', '2026-04-31'), /THROUGH_DAY is not a valid calendar date/);
+});
+
+test('a reversed range throws', () => {
+  assert.throws(() => resolveDays('2026-08-24', '2026-08-01'), /FROM_DAY \(2026-08-24\) must not be after THROUGH_DAY \(2026-08-01\)/);
 });
 
 // `node -e` leaves process.argv[1] unset, so the entry-point guard has to cope with
-// having no script path. The token and org are cleared: were the guard to let main
-// run, it would exit non-zero and fail this call rather than pass silently.
+// having no script path. The token, org, and range are cleared: were the guard to let
+// main run, it would exit non-zero and fail this call rather than pass silently.
 test('importing the module yields resolveDays without running the fetch', () => {
   const env = { ...process.env };
   delete env.AI_USAGE_PAT;
   delete env.ORG;
+  delete env.FROM_DAY;
+  delete env.THROUGH_DAY;
   const script = `import(${JSON.stringify(pathToFileURL(fetchScript).href)})` +
     `.then((m) => console.log(typeof m.resolveDays))`;
   // execPath, not "node": the guard is runtime behavior, so it has to be exercised
