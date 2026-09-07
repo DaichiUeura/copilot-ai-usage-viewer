@@ -50,7 +50,8 @@ The two look alike in a total — both add nothing — but they answer opposite
 questions, and reading a blank as `0` reports the usage as billed at nothing.
 
 So the viewer treats them separately. A CSV where no row carries a numeric
-`net_amount` has no billed amount to report: the Net and Covered stats read "—",
+`net_amount` has no billed amount to report: the Net stat reads "—", the budget
+stat is left out rather than dividing a missing amount by the budget,
 the per-member Net ranking and detail column say the value is not available
 rather than fully covered, and the Overview — which answers what the organization
 is billed — is not offered at all. A `net_amount` of `0` stays a real zero and

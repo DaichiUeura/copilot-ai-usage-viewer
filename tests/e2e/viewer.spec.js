@@ -289,8 +289,7 @@ test('a CSV with no net_amount reports Net as not available, never as covered', 
   await expect(badges.nth(1)).toContainText('—');
   await expect(badges.nth(1)).not.toContainText('$0.00');
   await expect(badges.nth(1)).not.toContainText('Covered by included usage');
-  await expect(badges.nth(2)).toContainText('—');
-  await expect(badges.nth(2)).not.toContainText('100.0%');
+  await expect(badges).toHaveCount(2);   // Gross and Net, nothing derived from them
 
   // The Net ranking says why it is empty, and does not claim full coverage.
   expect(await getChartConfig(page, 'chartTotalNet')).toBeNull();
@@ -311,7 +310,6 @@ test('a net_amount of zero still reads as fully covered', async ({ page }) => {
   const badges = page.locator('#costBadges .cost-stat');
   await expect(badges.nth(1)).toContainText('$0.00');
   await expect(badges.nth(1)).toContainText('Covered by included usage');
-  await expect(badges.nth(2)).toContainText('100.0%');
   await expect(page.locator('.tab[data-tab="overview"]')).toBeVisible();
 });
 
@@ -327,7 +325,6 @@ test('two CSVs drive Overview and Members from their own feed', async ({ page })
   await expect(page.locator('#detailTabs .tab')).toHaveCount(2);
   const badges = page.locator('#costBadges .cost-stat');
   await expect(badges.nth(1)).toContainText('$1.50');
-  await expect(badges.nth(2)).toContainText('81.3%');
 
   // Overview is the billing feed: metered from 05-03, so a Net line and the marker.
   const cum = await getChartConfig(page, 'chartCumulative');
@@ -589,6 +586,43 @@ test('net_limit forces the Net baseline even when all usage is pool-covered', as
   expect(cumConfig.data.datasets[1].data.every(v => v === 0)).toBe(true);
   expect(cumConfig.plugins.some(p => p.id === 'limitLine')).toBe(true);
   expect(cumConfig.options.scales.y.suggestedMax).toBeCloseTo(5.25, 2);
+});
+
+// With a budget on hand the header gains a third stat, so the amount Net is measured
+// against is readable outside the cumulative chart. It spells out the budget beside
+// the share, because that number is supplied in the URL and is in no column.
+test('a budget adds a header stat naming both the share and the amount', async ({ page }) => {
+  await page.goto(`${appUrl}?net_limit=10`);          // metered fixture: Gross $10.50, Net $5.30
+  await page.locator('#fileInput').setInputFiles(meteredCsv);
+  await expect(page.locator('#dashboard')).toBeVisible();
+
+  const budget = page.locator('#costBadges .cost-stat').nth(2);
+  await expect(budget).toContainText('Budget used');
+  await expect(budget).toContainText('53.0%');
+  await expect(budget).toContainText('$10');
+});
+
+// Being over budget is a fact the file already settles, so it is reported as it
+// stands rather than capped at 100%, and colored the way an exceeded quota is.
+test('a budget already exceeded reports past 100% in red', async ({ page }) => {
+  await page.goto(`${appUrl}?net_limit=5`);
+  await page.locator('#fileInput').setInputFiles(meteredCsv);
+  await expect(page.locator('#dashboard')).toBeVisible();
+
+  const value = page.locator('#costBadges .cost-stat').nth(2).locator('.cost-stat-value');
+  await expect(value).toContainText('106.0%');
+  await expect(value).toHaveCSS('color', 'rgb(255, 123, 114)');
+});
+
+// The share needs a billed amount to divide. A file that carries none has no share
+// to report, so the stat is absent rather than computed from a Net that reads $0.00
+// only because it is missing.
+test('a budget adds no header stat when the file reports no billed amount', async ({ page }) => {
+  await page.goto(`${appUrl}?net_limit=10`);
+  await page.locator('#fileInput').setInputFiles(perUserNoNetCsv);
+  await expect(page.locator('#dashboard')).toBeVisible();
+
+  await expect(page.locator('#costBadges .cost-stat')).toHaveCount(2);
 });
 
 // Org-level mode: a CSV with a single distinct username (no per-member breakdown)

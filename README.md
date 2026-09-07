@@ -38,11 +38,14 @@ When the host dates the response with a `Last-Modified` header, each panel's cap
 adds when its copy was published, in your own time zone. A feed republished on a
 schedule can stall without the rows ever looking wrong, and that date is what shows it.
 
-### Mark a usage limit
+### Measure against a budget
 
-Use `net_limit=` to draw a horizontal reference line on the Overview cumulative
-chart, against the cumulative Net (metered) line. The value is supplied here, not
-read from the CSV. With no `net_limit`, nothing is drawn.
+Use `net_limit=` to pass a budget. It draws a horizontal reference line on the
+Overview cumulative chart, against the cumulative Net (metered) line, and adds a
+header stat showing how much of the budget the billed amount has used. That share
+covers the whole file, over whatever range it holds — the range each panel's
+caption names — so pass a budget for the same period. The value is supplied here,
+not read from the CSV. With no `net_limit`, neither is shown.
 
 ```text
 https://daichiueura.github.io/copilot-ai-usage-viewer/?csv=reports/ai-usage-report.csv&net_limit=10000

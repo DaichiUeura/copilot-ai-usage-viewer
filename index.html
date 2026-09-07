@@ -278,19 +278,19 @@ const I18N = {
     tipModel:   'The model with the highest gross AI credit consumption for this member.',
     // overview overlays
     poolExhaustedLabel: 'Pool exhausted',
-    limitLine:     'Net limit',
+    limitLine:     'Budget limit',
     limitLineNote: 'May stop usage, depending on org settings',
     // badges
     badgeGross:    'Gross',
     badgeNet:      'Net',
     badgeNetWarn:  'Net',
-    badgeCovered:  'Covered',
+    badgeBudget:   'Budget used',
+    badgeBudgetOf: 'of',
     tipBadgeGross: 'Total GitHub AI Credits consumed across all members at list price ($0.01/credit)',
     tipBadgeNet0:  'Actual billed amount. $0.00 = all usage covered by included AI credits (AI credit pool)',
     tipBadgeNetX:  'Actual billed amount including metered usage beyond included AI credits',
-    tipBadgeCover: "Percentage of gross usage covered by your plan's included AI credits",
     tipBadgeNetNA: 'This file reports consumption only. The billed amount is not in it, which is not the same as $0.00',
-    tipBadgeCoverNA: 'Needs the billed amount, which this file does not carry',
+    tipBadgeBudget: 'Billed amount as a share of the budget given in the URL. The budget is not in the CSV or in any GitHub response, and whether reaching it stops usage depends on your org budget settings',
     coveredLabel:  'Covered by included usage',
     meteredLabel:  'Includes metered usage',
     notAvailableLabel: 'Not available in this file',
@@ -377,18 +377,18 @@ const I18N = {
     tipModel:   'このメンバーで最も多く消費した AI クレジットのモデル。',
     // overview overlays
     poolExhaustedLabel: 'プール枯渇',
-    limitLine:     'Net リミット',
+    limitLine:     '予算しきい値',
     limitLineNote: '組織の設定により利用が停止する制限ライン',
     badgeGross:    'Gross',
     badgeNet:      'Net',
     badgeNetWarn:  'Net',
-    badgeCovered:  'Covered',
+    badgeBudget:   '予算消化',
+    badgeBudgetOf: '予算額',
     tipBadgeGross: '全メンバーの GitHub AI クレジット使用量の定価合計（$0.01/credit）',
     tipBadgeNet0:  '実請求額。$0.00 = すべて included AI credits（AI credit pool）でカバー済み',
     tipBadgeNetX:  '実請求額。included AI credits を超えた従量課金（metered usage）を含む',
-    tipBadgeCover: 'Gross 使用量のうちプランの included AI credits でカバーされた割合',
     tipBadgeNetNA: 'このファイルは消費量のみを記録しています。請求額は含まれていません（$0.00 とは異なります）',
-    tipBadgeCoverNA: '算出には請求額が必要ですが、このファイルには含まれていません',
+    tipBadgeBudget: 'URL で指定した予算額に対する請求額（Net）の割合。予算額は CSV にも GitHub の応答にも含まれません。到達時に利用が停止するかは組織の予算設定によります',
     coveredLabel:  'Included usage でカバー済み',
     meteredLabel:  '従量課金（Metered usage）あり',
     notAvailableLabel: 'このファイルには含まれません',
@@ -553,7 +553,6 @@ function aggregate(rows) {
   const orgs   = [...new Set(rows.map(r => r['organization']).filter(Boolean))];
   const grand_list = Object.values(user_total).reduce((s, v) => s + v, 0);
   const grand_net  = Object.values(user_net).reduce((s, v) => s + v, 0);
-  const grand_disc = grand_list - grand_net;
   // Whether this CSV says anything at all about what is billed. Everything that
   // shows covered-vs-metered hangs off it: with no net column there is no coverage
   // to report, and reporting $0.00 would claim the usage was fully covered.
@@ -564,7 +563,7 @@ function aggregate(rows) {
     : null;
   return { users, dates, models, orgs, net_available, pool_exhausted,
            user_total, user_model, user_date, user_net, user_quota,
-           model_total, date_total, date_net, grand_list, grand_net, grand_disc, grand_qty };
+           model_total, date_total, date_net, grand_list, grand_net, grand_qty };
 }
 
 function buildDataSets(rows) {
@@ -789,17 +788,31 @@ function renderCaptions() {
 }
 
 function renderCostBadges() {
-  const { grand_list, grand_net, grand_disc, net_available } = DATA;
+  const { grand_list, grand_net, net_available } = DATA;
   const hasMetered = grand_net > 0.001;
-  // Without a net column there is no billed amount to show. The Net and Covered
-  // stats keep their place and read "—", so the gap is visible as a gap rather
-  // than as $0.00 fully covered.
+  // Without a net column there is no billed amount to show. The Net stat keeps its
+  // place and reads "—", so the gap is visible as a gap rather than as $0.00 fully
+  // covered.
   const netValue = net_available ? `$${grand_net.toFixed(2)}` : '—';
   const netColor = net_available ? (hasMetered ? '#d29922' : '#3fb950') : '#8b949e';
   const netTip   = net_available ? (hasMetered ? t('tipBadgeNetX') : t('tipBadgeNet0')) : t('tipBadgeNetNA');
   const netSub   = net_available ? (hasMetered ? t('meteredLabel') : t('coveredLabel')) : t('notAvailableLabel');
-  const coverValue = net_available ? `${(grand_list > 0 ? grand_disc / grand_list * 100 : 0).toFixed(1)}%` : '—';
-  const coverTip   = net_available ? t('tipBadgeCover') : t('tipBadgeCoverNA');
+  // How far the billed amount has eaten into the budget. Needs both a billed amount
+  // and a budget to divide by, so the stat appears only when it can be computed —
+  // an absent budget is not a zero one. Past the budget it keeps counting rather
+  // than stopping at 100%, since that is settled by the file and not a projection.
+  // The amount is spelled out beside the share, because the reader supplied it and
+  // it appears nowhere in the CSV. Its grouping is pinned to one locale: under a
+  // browser set to de-DE the default would render $10,000 as "$10.000", which reads
+  // as ten dollars beside an English or Japanese label.
+  const showBudget  = net_available && reportLimit != null;
+  const budgetValue = showBudget ? `${(grand_net / reportLimit * 100).toFixed(1)}%` : '';
+  const budgetColor = showBudget && grand_net > reportLimit ? '#ff7b72' : '#60a5fa';
+  const budgetStat  = showBudget ? `
+      <div class="cost-stat" title="${t('tipBadgeBudget')}">
+        <span class="cost-stat-label">${t('badgeBudget')}</span>
+        <span class="cost-stat-value" style="color:${budgetColor}">${budgetValue} <span class="cost-stat-sub">${t('badgeBudgetOf')} $${reportLimit.toLocaleString('en-US')}</span></span>
+      </div>` : '';
   document.getElementById('costBadges').innerHTML = `
     <div class="cost-bar">
       <div class="cost-stat" title="${t('tipBadgeGross')}">
@@ -809,11 +822,7 @@ function renderCostBadges() {
       <div class="cost-stat" title="${netTip}">
         <span class="cost-stat-label">${t('badgeNet')}</span>
         <span class="cost-stat-value" style="color:${netColor}">${netValue} <span class="cost-stat-sub">${netSub}</span></span>
-      </div>
-      <div class="cost-stat" title="${coverTip}">
-        <span class="cost-stat-label">${t('badgeCovered')}</span>
-        <span class="cost-stat-value" style="color:${net_available ? '#60a5fa' : '#8b949e'}">${coverValue}</span>
-      </div>
+      </div>${budgetStat}
     </div>`;
 }
 
@@ -1196,7 +1205,7 @@ function buildOrg() {
       ctx.fillStyle = '#f85149';
       ctx.textAlign = 'left';
       ctx.textBaseline = 'bottom';
-      ctx.fillText(`${t('limitLine')} $${reportLimit.toLocaleString()}`, chartArea.left + 6, y - 3);
+      ctx.fillText(`${t('limitLine')} $${reportLimit.toLocaleString('en-US')}`, chartArea.left + 6, y - 3);
       // On hover, reveal the explanatory note as a small tooltip near the cursor.
       if (chart.$limitHover) {
         const note = t('limitLineNote');
@@ -1439,7 +1448,7 @@ function buildTable() {
             <div class="bar-bg"><div class="bar-fill ${over?'qbar-over':'qbar-ok'}" style="width:${qBarW}%"></div></div>
             <span class="num" style="width:52px;text-align:right;font-size:0.78rem;color:${over?'#ff7b72':'#8b949e'}">${qpct.toFixed(0)}%</span>
           </div>
-          <div style="font-size:0.72rem;color:#8b949e;margin-top:2px">${Math.round(usedCr).toLocaleString()} / ${quota.toLocaleString()} cr</div>
+          <div style="font-size:0.72rem;color:#8b949e;margin-top:2px">${Math.round(usedCr).toLocaleString('en-US')} / ${quota.toLocaleString('en-US')} cr</div>
         </td>`;
       } else { quotaCell = '<td style="color:#8b949e">—</td>'; }
     }

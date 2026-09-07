@@ -58,6 +58,14 @@ Working rules that follow from these:
   also keeps the tabs honest about their input: an organization-total feed has no
   member dimension and a per-user feed has no billed amount, so each tab is driven
   by the feed that can actually answer it.
+- **A reference value may come from outside the CSV.** The budget the cumulative
+  chart and the header stat measure Net against is supplied in the URL, not read
+  from a column. That stays inside principle 1 because it is a static value the
+  reader already knows — the tool computes no future number from it. Two rules keep
+  it honest: always print the amount next to any share derived from it, so it is
+  never mistaken for a figure the CSV or GitHub reported; and never show pace
+  against it, or how the month is trending toward it — that is where forecasting
+  starts.
 - **Prefer leaving stable features over marginal cleanup.** Removing something
   that works carries churn risk of its own.
 
