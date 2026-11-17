@@ -317,8 +317,16 @@ const I18N = {
                      d: ()    => 'Nothing confirms they describe one organization, so their amounts should not be read together.' },
       filesSuperseded: { t: p => `${p.n} file(s) opened but not shown`,
                      d: p     => `Not shown: ${p.files}. Only one file with a billed amount and one without can be open at a time.` },
-      feedsDiffer: { t: p     => `The two files disagree on ${p.n} of the ${p.days} days they both cover (up to $${p.max})`,
-                     d: ()    => 'At least one of them recorded only part of those days. Compare them only where they agree.' },
+      feedsDiffer: { t: p     => p.n
+                       ? `The two files disagree on ${p.n} of the ${p.days} days they both cover (up to $${p.max})`
+                       : `The two files have a Gross difference of ${p.total} across the ${p.days} days they both cover`,
+                     d: p     => `The shared-period Gross difference is ${p.total} (Overview minus Members). Different reporting dates or incomplete data may contribute; these files do not establish the cause.${p.dates ? ` Daily Gross differences (Overview minus Members): ${p.dates}.` : ''}` },
+      feedsShifted:{ t: ()    => 'Daily differences offset each other across the shared period',
+                     d: p     => `Usage near date boundaries may have been recorded on different days. Daily Gross differences (Overview minus Members): ${p.dates}.` },
+      feedsPending:{ t: ()    => 'A difference at the end of the shared period remains unconfirmed',
+                     d: p     => `The last day's difference may be offset by the following day's data, which is outside the shared period. Daily Gross differences (Overview minus Members): ${p.dates}.` },
+      feedsEdge:   { t: ()    => 'A difference at the start of the shared period remains unconfirmed',
+                     d: p     => `One file may include usage from the preceding day, which is outside the shared period; a difference at the end may also remain. Daily Gross differences (Overview minus Members): ${p.dates}.` },
       feedsApart:  { t: ()    => 'The two files cover no day in common',
                      d: ()    => 'Their amounts cannot be compared. Each panel names the range it covers.' },
       orgLevelOnly:{ t: ()    => 'No per-member breakdown — the Members tab is hidden',
@@ -414,8 +422,16 @@ const I18N = {
                      d: ()    => '同じ組織のものだと確認できないため、金額をまとめて読まないでください。' },
       filesSuperseded: { t: p => `開いたが表示していないファイル: ${p.n} 件`,
                      d: p     => `対象: ${p.files}。請求額を持つファイルと持たないファイルを 1 つずつしか開けません。` },
-      feedsDiffer: { t: p     => `2 つのファイルは共通する ${p.days} 日のうち ${p.n} 日で一致しません（最大 $${p.max}）`,
-                     d: ()    => '少なくとも片方がその日を部分的にしか記録していません。一致している日だけで比べてください。' },
+      feedsDiffer: { t: p     => p.n
+                       ? `2 つのファイルは共通する ${p.days} 日のうち ${p.n} 日で一致しません（最大 $${p.max}）`
+                       : `2 つのファイルは共通する ${p.days} 日間で Gross に ${p.total} の差があります`,
+                     d: p     => `共通期間の Gross の差（概要 − メンバー別）は ${p.total} です。計上日の違いやデータの未反映などが考えられますが、この 2 つのファイルだけでは原因を特定できません。${p.dates ? `日別の Gross の差（概要 − メンバー別）: ${p.dates}。` : ''}` },
+      feedsShifted:{ t: ()    => '日別の差は共通期間全体では相殺されています',
+                     d: p     => `日付境界付近の利用の計上日が異なる可能性があります。日別の Gross の差（概要 − メンバー別）: ${p.dates}。` },
+      feedsPending:{ t: ()    => '共通期間の最終日の差はまだ確認できません',
+                     d: p     => `最終日の差は、共通期間外の翌日分で相殺される可能性があります。日別の Gross の差（概要 − メンバー別）: ${p.dates}。` },
+      feedsEdge:   { t: ()    => '共通期間の初日の差はまだ確認できません',
+                     d: p     => `片方のファイルに共通期間外の前日分の利用が含まれている可能性があります。最終日にも未確認の差が残っている場合があります。日別の Gross の差（概要 − メンバー別）: ${p.dates}。` },
       feedsApart:  { t: ()    => '2 つのファイルに共通する日がありません',
                      d: ()    => '金額どうしを比べることはできません。対象期間は各パネルのキャプションにあります。' },
       orgLevelOnly:{ t: ()    => 'メンバー別の内訳がありません — メンバー別タブは非表示',
@@ -826,9 +842,8 @@ function renderCostBadges() {
     </div>`;
 }
 
-// Two files covering the same day should report the same spend that day. Where
-// they do not, the totals a reader compares across tabs will not reconcile, and
-// the reason is worth naming rather than leaving them to notice the gap.
+// Daily differences can offset across reporting dates. Compare the shared-period
+// total, allowing for differences at edges whose neighboring day is outside it.
 function crossFeedIssue() {
   const a = SLOTS.billing?.data, b = SLOTS.users?.data;
   if (!a || !b) return null;
@@ -848,14 +863,29 @@ function crossFeedIssue() {
   const to = last(a) < last(b) ? last(a) : last(b);
   const shared = a.dates.filter(d => d >= from && d <= to);
   if (!shared.length) return { key: 'feedsApart', p: {}, level: 'info' };
-  let n = 0, max = 0;
-  shared.forEach(d => {
-    const gap = Math.abs((a.date_total[d] || 0) - (b.date_total[d] || 0));
-    if (gap > 0.01) { n += 1; max = Math.max(max, gap); }
-  });
-  return n
-    ? { key: 'feedsDiffer', p: { n, days: shared.length, max: max.toFixed(2) }, level: 'warn' }
-    : null;
+  const tol = 0.01;
+  // Preserve the inclusive cent boundary after floating-point sums/subtractions.
+  const withinTolerance = value => Math.abs(value) <= tol + 1e-12;
+  const gaps = shared.map(date => ({
+    date, gap: (a.date_total[date] || 0) - (b.date_total[date] || 0),
+  }));
+  const total = gaps.reduce((sum, d) => sum + d.gap, 0);
+  const flagged = gaps.filter(d => !withinTolerance(d.gap));
+  if (!flagged.length && withinTolerance(total)) return null;
+  const signed = value => `${value < 0 ? '-' : '+'}$${Math.abs(value).toFixed(value !== 0 && Math.abs(value) < tol ? 4 : 2)}`;
+  const listed = flagged.length ? flagged : gaps.filter(d => Math.abs(d.gap) >= 0.00005);
+  const p = {
+    n: flagged.length, days: shared.length,
+    max: flagged.reduce((max, d) => Math.max(max, Math.abs(d.gap)), 0).toFixed(2),
+    total: signed(total),
+    dates: listed.map(d => `${d.date} ${signed(d.gap)}`).join(', '),
+  };
+  if (withinTolerance(total)) return { key: 'feedsShifted', p, level: 'info' };
+  const firstGap = gaps[0].gap, lastGap = gaps[gaps.length - 1].gap;
+  if (withinTolerance(total - lastGap)) return { key: 'feedsPending', p, level: 'info' };
+  if (withinTolerance(total - firstGap) || withinTolerance(total - firstGap - lastGap))
+    return { key: 'feedsEdge', p, level: 'info' };
+  return { key: 'feedsDiffer', p, level: 'warn' };
 }
 
 // Facts about the dashboard as a whole rather than about one file: which tabs the

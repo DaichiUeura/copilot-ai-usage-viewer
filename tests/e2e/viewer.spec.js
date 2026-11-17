@@ -440,7 +440,140 @@ test('two CSVs that disagree on a shared day raise a warning', async ({ page }) 
   await expect(banner).toHaveCount(1);
   await expect(banner).toContainText('disagree on 1 of the 3 days');
   await expect(banner).toContainText('$0.60');
+  await expect(banner.locator('.vb-detail-msg')).toContainText('2026-05-02 -$0.60');
+  await expect(banner).toContainText('these files do not establish the cause');
 });
+
+test('daily differences that offset across the shared period appear as a note', async ({ page }) => {
+  await page.goto(appUrl);
+  await page.setInputFiles('#fileInput', [
+    { name: 'org-total.csv', mimeType: 'text/csv', buffer: Buffer.from(orgTotalCsvText) },
+    { name: 'shifted.csv', mimeType: 'text/csv',
+      buffer: Buffer.from(perUserMismatchCsvText.replace('"180","ai-credits","0.01","1.8"', '"120","ai-credits","0.01","1.2"')) },
+  ]);
+  await expect(page.locator('#dashboard')).toBeVisible();
+
+  await expect(page.locator('#validationBanner .vb-full')).toHaveCount(0);
+  const head = page.locator('#validationBanner .vb-note-head');
+  await expect(head).toContainText('Daily differences offset each other');
+  await head.click();
+  const detail = page.locator('#validationBanner .vb-note-detail');
+  await expect(detail).toBeVisible();
+  await expect(detail).toContainText('2026-05-02 -$0.60, 2026-05-03 +$0.60');
+  await expect(detail).toContainText('may have been recorded on different days');
+
+  await page.locator('#menuBtn').click();
+  await page.locator('#langToggle').click();
+  await expect(head).toContainText('日別の差は共通期間全体では相殺されています');
+  await head.click();
+  await expect(detail).toBeVisible();
+  await expect(detail).toContainText('計上日が異なる可能性があります');
+  await expect(detail).toContainText('2026-05-02 -$0.60, 2026-05-03 +$0.60');
+});
+
+test('a difference only on the last shared day appears as a pending note', async ({ page }) => {
+  await page.goto(appUrl);
+  await page.setInputFiles('#fileInput', [
+    { name: 'org-total.csv', mimeType: 'text/csv', buffer: Buffer.from(orgTotalCsvText) },
+    { name: 'pending.csv', mimeType: 'text/csv',
+      buffer: Buffer.from(perUserNoNetCsvText.replace('"160","ai-credits","0.01","1.6"', '"220","ai-credits","0.01","2.2"')) },
+  ]);
+  await expect(page.locator('#dashboard')).toBeVisible();
+
+  await expect(page.locator('#validationBanner .vb-full')).toHaveCount(0);
+  const head = page.locator('#validationBanner .vb-note-head');
+  await expect(head).toContainText('at the end of the shared period remains unconfirmed');
+  await head.click();
+  const detail = page.locator('#validationBanner .vb-note-detail');
+  await expect(detail).toBeVisible();
+  await expect(detail).toContainText('may be offset by the following day');
+  await expect(detail).toContainText('2026-05-03 -$0.60');
+});
+
+test('a last-day difference becomes a warning if the next day does not offset it', async ({ page }) => {
+  const nextOrgDay = orgTotalCsvText.split('\n').filter(row => row.startsWith('"2026-05-03"'))
+    .join('\n').replace(/2026-05-03/g, '2026-05-04');
+  const nextUsersDay = perUserNoNetCsvText.split('\n').filter(row => row.startsWith('"2026-05-03"'))
+    .join('\n').replace(/2026-05-03/g, '2026-05-04');
+  await page.goto(appUrl);
+  await page.setInputFiles('#fileInput', [
+    { name: 'org-total.csv', mimeType: 'text/csv', buffer: Buffer.from(orgTotalCsvText + nextOrgDay + '\n') },
+    { name: 'unresolved.csv', mimeType: 'text/csv',
+      buffer: Buffer.from(perUserNoNetCsvText.replace('"160","ai-credits","0.01","1.6"', '"220","ai-credits","0.01","2.2"') + nextUsersDay + '\n') },
+  ]);
+  await expect(page.locator('#dashboard')).toBeVisible();
+
+  const banner = page.locator('#validationBanner .vb-full.warn');
+  await expect(banner).toHaveCount(1);
+  await expect(banner).toContainText('disagree on 1 of the 4 days');
+  await expect(banner.locator('.vb-detail-msg')).toContainText('2026-05-03 -$0.60');
+  await expect(page.locator('#validationBanner .vb-note')).toHaveCount(0);
+});
+
+for (const { gaps, summary } of [
+  { gaps: [0, 0.01, 0], summary: null },
+  { gaps: [0, 0.01, 0.6], summary: 'at the end of the shared period remains unconfirmed' },
+  { gaps: [0.6, 0.01, 0], summary: 'at the start of the shared period remains unconfirmed' },
+  { gaps: [0.6, 0.010001, 0], summary: 'disagree on 2 of the 3 days' },
+  { gaps: [0, 0.006, 0.006, 0.006, 0], summary: 'Gross difference of +$0.02' },
+]) {
+  test(`shared-period tolerance handles daily gaps ${gaps.join(', ')}`, async ({ page }) => {
+    const header = 'date,username,model,gross_amount,net_amount,organization\n';
+    const orgCsv = header + gaps.map((gap, i) =>
+      `2026-05-0${i + 1},(org total),Model A,1,0,Example Org`).join('\n');
+    const usersCsv = header + gaps.map((gap, i) =>
+      `2026-05-0${i + 1},alpha-user,Model A,${1 - gap},,Example Org`).join('\n');
+    await page.goto(appUrl);
+    await page.setInputFiles('#fileInput', [
+      { name: 'org-total.csv', mimeType: 'text/csv', buffer: Buffer.from(orgCsv) },
+      { name: 'users.csv', mimeType: 'text/csv', buffer: Buffer.from(usersCsv) },
+    ]);
+    await expect(page.locator('#dashboard')).toBeVisible();
+
+    if (summary === null) {
+      await expect(page.locator('#validationBanner')).toBeEmpty();
+    } else if (summary.includes('unconfirmed')) {
+      await expect(page.locator('#validationBanner .vb-full')).toHaveCount(0);
+      await expect(page.locator('#validationBanner .vb-note-head')).toContainText(summary);
+    } else {
+      const banner = page.locator('#validationBanner .vb-full.warn');
+      await expect(banner).toHaveCount(1);
+      await expect(banner).toContainText(summary);
+      if (gaps.length === 5) {
+        await expect(banner.locator('.vb-detail-msg')).toContainText(
+          '2026-05-02 +$0.0060, 2026-05-03 +$0.0060, 2026-05-04 +$0.0060');
+        await page.locator('#menuBtn').click();
+        await page.locator('#langToggle').click();
+        await expect(banner).toContainText('5 日間で Gross に +$0.02 の差があります');
+        await expect(banner).toContainText('原因を特定できません');
+      }
+    }
+  });
+}
+
+for (const bothEdges of [false, true]) {
+  test(`differences at ${bothEdges ? 'both shared-period edges' : 'the first shared day'} appear as an edge note`, async ({ page }) => {
+    let usersCsv = perUserNoNetCsvText.replace('"150","ai-credits","0.01","1.5"', '"210","ai-credits","0.01","2.1"');
+    if (bothEdges)
+      usersCsv = usersCsv.replace('"160","ai-credits","0.01","1.6"', '"220","ai-credits","0.01","2.2"');
+    await page.goto(appUrl);
+    await page.setInputFiles('#fileInput', [
+      { name: 'org-total.csv', mimeType: 'text/csv', buffer: Buffer.from(orgTotalCsvText) },
+      { name: 'edge.csv', mimeType: 'text/csv', buffer: Buffer.from(usersCsv) },
+    ]);
+    await expect(page.locator('#dashboard')).toBeVisible();
+
+    await expect(page.locator('#validationBanner .vb-full')).toHaveCount(0);
+    const head = page.locator('#validationBanner .vb-note-head');
+    await expect(head).toContainText('at the start of the shared period remains unconfirmed');
+    await head.click();
+    const detail = page.locator('#validationBanner .vb-note-detail');
+    await expect(detail).toBeVisible();
+    await expect(detail).toContainText('may include usage from the preceding day');
+    await expect(detail).toContainText('2026-05-01 -$0.60');
+    if (bothEdges) await expect(detail).toContainText('2026-05-03 -$0.60');
+  });
+}
 
 // Feeds sitting a month apart is a normal state while one has rolled over to a new
 // month and the other has not, so this is context rather than a warning.
